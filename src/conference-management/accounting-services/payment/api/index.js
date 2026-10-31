@@ -3,7 +3,7 @@
 import { PaymentController } from './payment.controller.js';
 import { PaymentWebhookController } from './paymentWebhook.controller.js';
 import { getPaymentRoutes } from './payment.route.js';
-// Adjust the relative traversal depth from payment.route.js up to src/Shared/infrastructure/middleware/authGuard.js
+// Adjust the relative traversal depth from payment.route.js up to src/Shared/Infrastructure/middleware/authGuard.js
 // From src/conference-management/accounting_services/Payment/api/
 // Go up 5 levels: api -> Payment -> accounting_services -> conference-management -> src
 /**

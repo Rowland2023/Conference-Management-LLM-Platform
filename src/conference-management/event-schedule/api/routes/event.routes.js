@@ -3,8 +3,8 @@
 
 import { Router } from "express";
 
-import { correlationIdMiddleware } from "../../../../Shared/infrastructure/middleware/correlationId.js";
-import { validate } from "../../../../Shared/infrastructure/middleware/validate.js";
+import { correlationIdMiddleware } from "../../../../Shared/Infrastructure/middleware/correlationId.js";
+import { validate } from "../../../../Shared/Infrastructure/middleware/validate.js";
 
 import {
     createEventSchema,

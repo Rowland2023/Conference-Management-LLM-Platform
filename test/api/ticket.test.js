@@ -32,8 +32,7 @@ describe("Ticket API Integration Tests", () => {
             .set("Idempotency-Key", crypto.randomUUID());
 
     const expectSuccess = (response, expectedStatus) => {
-        expect(response.statusCode).toBe(expectedStatus);
-
+        // Report the actual API response before Jest throws an assertion error.
         if (response.statusCode !== expectedStatus) {
             throw new Error(
                 [
@@ -44,6 +43,7 @@ describe("Ticket API Integration Tests", () => {
             );
         }
 
+        expect(response.statusCode).toBe(expectedStatus);
         expect(response.body.success).toBe(true);
         expect(response.body.data).toBeDefined();
     };

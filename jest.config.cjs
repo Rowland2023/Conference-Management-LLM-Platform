@@ -1,10 +1,16 @@
 module.exports = {
   testEnvironment: 'node',
+
+  setupFilesAfterEnv: ['<rootDir>/test/setup/jest.setup.js'],
+
   transform: {},
+
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
+
   collectCoverageFrom: ['src/**/*.js'],
+
   coverageThreshold: {
     global: {
       statements: 70,
@@ -13,6 +19,8 @@ module.exports = {
       lines: 70,
     },
   },
+
   testMatch: ['**/test/**/*.test.js'],
+
   verbose: true
 };

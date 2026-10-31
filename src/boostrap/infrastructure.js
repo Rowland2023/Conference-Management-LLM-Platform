@@ -1,27 +1,26 @@
 
 // src/boostrap/infrastructure.js
-
 import Redis from "ioredis";
 import axios from "axios";
 
+
 import { KafkaConnection }
-    from "../Shared/infrastructure/messaging/kafka/KafkaConnection.js";
+    from "../Shared/Infrastructure/messaging/kafka/KafkaConnection.js";
 
 import { KafkaEventBus }
-    from "../Shared/infrastructure/messaging/kafka/KafkaEventBus.js";
+    from "../Shared/Infrastructure/messaging/kafka/KafkaEventBus.js";
 
 import { OutboxWorker }
-    from "../Shared/infrastructure/messaging/outbox/OutboxWorker.js";
-
-import { PostgresOutboxRepository }
-    from "../Shared/infrastructure/messaging/outbox/PostgresOutboxRepository.js";
+    from "../Shared/Infrastructure/messaging/outbox/OutboxWorker.js";
 
 import KnexUnitOfWork
     from "../cross-cutting/database/KnexUnitOfWork.js";
 
-import { registerLockCommands }
-    from "../Shared/infrastructure/redis/registerLockCommands.js";
+import { PostgresOutboxRepository }
+    from "../Shared/Infrastructure/messaging/outbox/PostgresOutboxRepository.js";
 
+import { registerLockCommands }
+    from "../Shared/Infrastructure/redis/registerLockCommands.js";
 
 export function bootstrapInfrastructure({
     db,

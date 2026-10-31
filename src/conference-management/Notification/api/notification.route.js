@@ -2,9 +2,9 @@ import { Router } from "express";
 
 import { authenticate } from "../../authentication/presentation/middleware/authenticate.js";
 
-import { validate } from "../../../Shared/infrastructure/middleware/validate.js";
-import { correlationIdMiddleware } from "../../../Shared/infrastructure/middleware/correlationId.js";
-import { idempotency } from "../../../Shared/infrastructure/middleware/idempotency.js";
+import { validate } from "../../../Shared/Infrastructure/middleware/validate.js";
+import { correlationIdMiddleware } from "../../../Shared/Infrastructure/middleware/correlationId.js";
+import { idempotency } from "../../../Shared/Infrastructure/middleware/idempotency.js";
 
 import {
     notificationIdSchema,

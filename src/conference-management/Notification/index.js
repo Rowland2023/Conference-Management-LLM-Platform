@@ -1,7 +1,7 @@
 // src/conference-management/Notification/index.js
 // Composition root for Notification sub-domain within Conference Management
 
-import { UnitOfWork } from "../../../Shared/infrastructure/UnitOfWork.js";
+import { UnitOfWork } from "../../../Shared/Infrastructure/UnitOfWork.js";
 import { PostgresNotificationRepository } from "./infrastructure/repositories/PostgresNotificationRepository.js";
 import { PostgresOutboxRepository } from "./infrastructure/repositories/PostgresOutboxRepository.js";
 import { EmailGateway } from "./infrastructure/gateways/EmailGateway.js";

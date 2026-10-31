@@ -1,7 +1,7 @@
 import express from "express";
 
-import { validate } from "../../../../../Shared/infrastructure/middleware/validate.js";
-import { authGuard } from "../../../../../Shared/infrastructure/middleware/authGuard.js";
+import { validate } from "../../../../../Shared/Infrastructure/middleware/validate.js";
+import { authGuard } from "../../../../../Shared/Infrastructure/middleware/authGuard.js";
 import {
     createAccountSchema,
     getAccountBalanceSchema,
