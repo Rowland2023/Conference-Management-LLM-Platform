@@ -7,23 +7,22 @@
   "author": "Rowland",
   "main": "src/index.js",
   "scripts": {
-    "start": "nodemon --exec babel-node ./src/index.js",
+    "start": "node ./src/index.js",
     "eval": "node --env-file=.env eval/run-eval.js",
     "test": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules PAYSTACK_SECRET_KEY=sk_test_dummy_key jest --runInBand",
     "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --config jest.unit.config.cjs --runInBand",
     "test:integration": "jest test/integration",
-    "test:api": "cross-env NODE_ENV=test PAYSTACK_SECRET_KEY=sk_test_dummy_key jest test/api --runInBand",
+    "test:api": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules PAYSTACK_SECRET_KEY=sk_test_dummy_key jest test/api --runInBand",
     "migrate": "knex migrate:latest",
     "rollback": "knex migrate:rollback",
     "lint": "eslint src test",
     "eslint": "^9.0.0",
     "status": "knex migrate:status",
-    "make:migration": "knex migrate:make"
+    "make:migration": "knex migrate:make",
+    "dev": "nodemon ./src/index.js"
   },
   "dependencies": {
-    "@babel/cli": "^7.29.7",
     "@babel/core": "^7.29.7",
-    "@babel/node": "^7.29.7",
     "@babel/preset-env": "^7.29.7",
     "@opentelemetry/api": "^1.9.1",
     "axios": "^1.19.0",
@@ -41,7 +40,6 @@
     "jsonwebtoken": "^9.0.3",
     "kafkajs": "^2.2.4",
     "knex": "^3.3.0",
-    "nodemon": "^3.1.14",
     "openai": "^6.45.0",
     "opossum": "^10.0.0",
     "pg": "^8.22.0",
@@ -61,6 +59,7 @@
     "eslint": "^9.39.5",
     "jest": "^30.4.2",
     "k6": "^0.0.0",
+    "nodemon": "^3.1.14",
     "nyc": "^18.0.0",
     "supertest": "^7.2.2",
     "testcontainers": "^12.0.4"
