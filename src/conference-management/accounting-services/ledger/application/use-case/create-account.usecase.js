@@ -1,82 +1,92 @@
-﻿import { randomUUID } from "node:crypto";
+/**
+ * Create Account Use Case
+ *
+ * Application service responsible for opening
+ * a ledger account and recording its domain event.
+ */
+
+import { randomUUID } from "node:crypto";
 
 import AccountAggregate from "../../domain/aggregates/account/account.aggregate.js";
-import { AccountCreatedEvent } from "../../domain/events/index.js";
+
+import { BaseDomainEvent } from "../../domain/events/base-domain.event.js";
 
 export class CreateAccountUseCase {
-  constructor({
-    accountRepository,
-    outboxRepository,
-    uow,
-    logger,
-  }) {
-    if (!accountRepository) {
-      throw new TypeError("accountRepository is required.");
+    constructor({
+        accountRepository,
+        outboxRepository,
+        uow,
+        logger,
+    }) {
+        if (!accountRepository) {
+            throw new Error("accountRepository is required.");
+        }
+
+        if (!uow || typeof uow.execute !== "function") {
+            throw new Error("uow.execute() is required.");
+        }
+
+        this.accountRepository = accountRepository;
+        this.outboxRepository = outboxRepository;
+        this.uow = uow;
+        this.logger = logger;
     }
 
-    if (!uow) {
-      throw new TypeError("uow is required.");
-    }
+    async execute(command) {
+        if (
+            !command ||
+            typeof command !== "object" ||
+            Array.isArray(command)
+        ) {
+            throw new Error("A valid account command is required.");
+        }
 
-    this.accountRepository = accountRepository;
-    this.outboxRepository = outboxRepository;
-    this.uow = uow;
-    this.logger = logger;
-  }
+        if (
+            !command.tenantId ||
+            typeof command.tenantId !== "string" ||
+            !command.tenantId.trim()
+        ) {
+            throw new Error("tenantId is required.");
+        }
 
-  async execute(command) {
-    if (!command || typeof command !== "object") {
-      throw new TypeError("A valid account command is required.");
-    }
-
-    const {
-      tenantId,
-      code,
-      accountNumber = code,
-      name,
-      currency,
-      type = "ASSET",
-    } = command;
-
-    if (!tenantId) {
-      throw new TypeError("tenantId is required.");
-    }
-
-    return this.uow.execute(async (transaction) => {
-      const account = new AccountAggregate({
-        id: randomUUID(),
-        tenantId,
-        accountNumber,
-        name,
-        currency,
-        type,
-      });
-
-      const savedAccount = await this.accountRepository.save(
-        account,
-        { transaction },
-      );
-
-      if (this.outboxRepository) {
-        const event = new AccountCreatedEvent({
-          aggregateId: savedAccount.id,
-          tenantId,
-          accountNumber: savedAccount.toJSON().accountNumber,
-          name: savedAccount.toJSON().name,
-          currency: savedAccount.toJSON().currency,
-          type: savedAccount.toJSON().type,
-          status: savedAccount.toJSON().status,
+        const account = new AccountAggregate({
+            id: randomUUID(),
+            tenantId: command.tenantId,
+            accountNumber: command.code,
+            name: command.name,
+            currency: command.currency,
+            type: command.type ?? "ASSET",
         });
 
-        await this.outboxRepository.save(event, transaction);
-      }
+        return this.uow.execute(async (trx) => {
+            await this.accountRepository.save(
+                account,
+                { transaction: trx },
+            );
 
-      this.logger?.info?.(
-        { accountId: savedAccount.id },
-        "Ledger account created.",
-      );
+            if (this.outboxRepository) {
+                const event = new BaseDomainEvent({
+                    eventName: "account.created",
+                    aggregateId: account.id,
+                    payload: {
+                        account: account.toJSON(),
+                        createdBy: command.createdBy ?? null,
+                    },
+                    metadata: {
+                        aggregateType: "AccountAggregate",
+                        correlationId: command.correlationId ?? null,
+                    },
+                });
 
-      return savedAccount;
-    });
-  }
+                await this.outboxRepository.save(event, trx);
+            }
+
+            this.logger?.info(
+                { accountId: account.id },
+                "Ledger account created.",
+            );
+
+            return account;
+        });
+    }
 }
