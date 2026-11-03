@@ -29,7 +29,6 @@
     "bcrypt": "^6.0.0",
     "bignumber.js": "^11.1.5",
     "cors": "^2.8.6",
-    "crypto": "^1.0.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.0",
@@ -64,6 +63,8 @@
     "testcontainers": "^12.0.4"
   },
   "overrides": {
-    "uuid": "11.1.1"
+    "uuid": "11.1.1",
+    "minimatch": "^11.0.3",
+    "glob": "^14.0.2"
   }
 }
