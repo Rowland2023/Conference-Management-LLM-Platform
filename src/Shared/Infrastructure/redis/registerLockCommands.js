@@ -1,4 +1,4 @@
-// src/Shared/infrastructure/redis/registerLockCommands.js
+// src/shared/infrastructure/redis/registerLockCommands.js
 
 /**
  * Registers Redis Lua commands used for distributed locking.

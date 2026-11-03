@@ -5,10 +5,10 @@
  * Application Process Bootstrap
  *
  * Responsibilities:
- * - Create and start the application
+ * - Create the application
+ * - Start the application lifecycle
  * - Start the HTTP server
  * - Handle process signals and fatal errors
- * - Gracefully shut down HTTP connections and application resources
  *
  * Does NOT know:
  * - Database implementation details
@@ -20,147 +20,90 @@
 import "dotenv/config";
 
 import { createApp } from "./app.js";
-import { PinoLogger } from "./cross-cutting/logging/PinoLogger.js";
 
-const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
-const SHUTDOWN_TIMEOUT_MS = 15_000;
-
-const logger = new PinoLogger();
+const PORT = Number(process.env.PORT ?? 3000);
+const SHUTDOWN_TIMEOUT = 15000;
 
 let application = null;
 let server = null;
 let shuttingDown = false;
-let shutdownPromise = null;
+let startupCompleted = false;
 
-/**
- * Normalize non-Error rejection reasons.
- *
- * @param {unknown} reason
- * @returns {Error}
- */
-function toError(reason) {
-    if (reason instanceof Error) {
-        return reason;
-    }
+const logger = {
+    info: (...args) => console.info(...args),
+    warn: (...args) => console.warn(...args),
+    error: (...args) => console.error(...args),
+};
 
-    return new Error(String(reason));
-}
-
-/**
- * Close the HTTP server and stop accepting new connections.
- *
- * @returns {Promise<void>}
- */
-async function closeHttpServer() {
-    if (!server?.listening) {
+async function shutdown(signal, error) {
+    if (shuttingDown) {
         return;
-    }
-
-    await new Promise((resolve, reject) => {
-        server.close((error) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-
-            resolve();
-        });
-
-        // Close idle keep-alive connections where supported.
-        server.closeIdleConnections?.();
-    });
-}
-
-/**
- * Stop application resources after HTTP traffic has drained.
- *
- * @returns {Promise<void>}
- */
-async function stopApplication() {
-    if (typeof application?.stop === "function") {
-        await application.stop();
-    }
-}
-
-/**
- * Gracefully shut down the application.
- *
- * Concurrent shutdown requests share the same promise.
- *
- * @param {string} signal
- * @param {Error|null} [fatalError=null]
- * @returns {Promise<void>}
- */
-function shutdown(signal, fatalError = null) {
-    if (shutdownPromise) {
-        return shutdownPromise;
     }
 
     shuttingDown = true;
 
-    shutdownPromise = (async () => {
-        let shutdownFailed = false;
+    logger.warn(
+        {
+            signal,
+            error,
+        },
+        "Graceful shutdown initiated"
+    );
 
-        logger.warn(
+    const timeout = setTimeout(() => {
+        logger.error("Shutdown timeout exceeded");
+        process.exit(1);
+    }, SHUTDOWN_TIMEOUT);
+
+    timeout.unref?.();
+
+    let shutdownFailed = false;
+
+    try {
+        // Stop accepting new connections and wait for
+        // existing connections to finish.
+        if (server?.listening) {
+            await new Promise((resolve, reject) => {
+                server.close((closeError) => {
+                    if (closeError) {
+                        reject(closeError);
+                        return;
+                    }
+
+                    resolve();
+                });
+
+                // Close idle keep-alive connections where supported.
+                server.closeIdleConnections?.();
+            });
+        }
+
+        // Stop workers, event consumers, and infrastructure.
+        if (application?.stop) {
+            await application.stop();
+        }
+    } catch (shutdownError) {
+        shutdownFailed = true;
+
+        logger.error(
             {
-                signal,
-                error: fatalError,
+                shutdownError,
             },
-            "Graceful shutdown initiated"
+            "Application shutdown failed"
         );
+    } finally {
+        clearTimeout(timeout);
+    }
 
-        const timeout = setTimeout(() => {
-            logger.error(
-                { signal, timeoutMs: SHUTDOWN_TIMEOUT_MS },
-                "Shutdown timeout exceeded"
-            );
+    logger.info("Application shutdown completed");
 
-            process.exit(1);
-        }, SHUTDOWN_TIMEOUT_MS);
-
-        try {
-            // Stop accepting requests before stopping dependencies.
-            await closeHttpServer();
-        } catch (error) {
-            shutdownFailed = true;
-
-            logger.error(
-                { error },
-                "HTTP server shutdown failed"
-            );
-        }
-
-        try {
-            await stopApplication();
-        } catch (error) {
-            shutdownFailed = true;
-
-            logger.error(
-                { error },
-                "Application resource shutdown failed"
-            );
-        } finally {
-            clearTimeout(timeout);
-        }
-
-        const exitCode =
-            fatalError || shutdownFailed ? 1 : 0;
-
-        logger.info(
-            { signal, exitCode },
-            "Application shutdown completed"
-        );
-
-        process.exitCode = exitCode;
-    })();
-
-    return shutdownPromise;
+    process.exit(
+        error || shutdownFailed ? 1 : 0
+    );
 }
 
-/**
- * Install process-level handlers before startup.
- */
-function installProcessHandlers() {
+async function bootstrap() {
+    // Install handlers before initializing application resources.
     process.once("SIGTERM", () => {
         void shutdown("SIGTERM");
     });
@@ -170,75 +113,51 @@ function installProcessHandlers() {
     });
 
     process.once("uncaughtException", (error) => {
-        logger.error(
-            { error },
-            "Uncaught exception"
-        );
-
         void shutdown("uncaughtException", error);
     });
 
     process.once("unhandledRejection", (reason) => {
-        const error = toError(reason);
-
-        logger.error(
-            { error },
-            "Unhandled promise rejection"
-        );
+        const error = reason instanceof Error
+            ? reason
+            : new Error(String(reason));
 
         void shutdown("unhandledRejection", error);
     });
-}
-
-/**
- * Start the application process.
- */
-async function bootstrap() {
-    installProcessHandlers();
-
-    if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
-        logger.error(
-            { configuredPort: process.env.PORT },
-            "Invalid HTTP port configuration"
-        );
-
-        process.exitCode = 1;
-        return;
-    }
 
     try {
-        application = await createApp({ logger });
+        application = await createApp({
+            logger,
+        });
 
         if (shuttingDown) {
-            await stopApplication();
+            await application.stop?.();
             return;
         }
 
-        const { app, start } = application ?? {};
+        const { app, start } = application;
 
         if (typeof app?.listen !== "function") {
             throw new TypeError(
-                "createApp() must return an object containing an Express app"
+                "createApp() must return an Express application"
             );
         }
 
         // Initialize infrastructure and background workers first.
-        if (typeof start === "function") {
-            await start();
-        }
+        await start?.();
 
         if (shuttingDown) {
-            await stopApplication();
+            await application.stop?.();
             return;
         }
 
         server = app.listen(PORT);
 
         server.once("listening", () => {
+            startupCompleted = true;
+
             logger.info(
                 {
-                    port: server.address()?.port ?? PORT,
-                    environment: process.env.NODE_ENV ?? "development",
+                    port: PORT,
                 },
                 "Conference Management API started"
             );
@@ -246,32 +165,36 @@ async function bootstrap() {
 
         server.on("error", (error) => {
             logger.error(
-                { error, port: PORT },
+                {
+                    error,
+                },
                 "HTTP server failure"
             );
 
             void shutdown("server_error", error);
         });
-    
-} catch (error) {
-    logger.error("Fatal bootstrap failure", {
-        error: error.message,
-        stack: error.stack,
-        name: error.name,
-        cause: error.cause?.message,
-    });
+    } catch (error) {
+        logger.error(
+            {
+                error,
+            },
+            "Fatal bootstrap failure"
+        );
 
-
-        try {
-            await stopApplication();
-        } catch (cleanupError) {
-            logger.error(
-                { error: cleanupError },
-                "Cleanup after bootstrap failure failed"
-            );
+        if (application?.stop) {
+            try {
+                await application.stop();
+            } catch (cleanupError) {
+                logger.error(
+                    {
+                        cleanupError,
+                    },
+                    "Cleanup after bootstrap failure failed"
+                );
+            }
         }
 
-        process.exitCode = 1;
+        process.exit(1);
     }
 }
 

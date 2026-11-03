@@ -1,5 +1,5 @@
-import { DomainEvent } from "../../../../Shared/domain/DomainEvent.js";
-import { DomainInvariantError } from "../../../../Shared/domain/error/DomainErrors.js";
+import { DomainEvent } from "../../../../shared/domain/DomainEvent.js";
+import { DomainInvariantError } from "../../../../shared/domain/error/DomainErrors.js";
 
 const CANCELLATION_REASONS = new Set([
   'user_request',

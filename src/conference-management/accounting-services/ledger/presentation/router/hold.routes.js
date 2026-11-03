@@ -7,10 +7,10 @@
 import express from "express";
 
 import { validate } 
-    from "../../../../../Shared/Infrastructure/middleware/validate.js";
+    from "../../../../../shared/infrastructure/middleware/validate.js";
 
 import { authGuard } 
-    from "../../../../../Shared/Infrastructure/middleware/authGuard.js";
+    from "../../../../../shared/infrastructure/middleware/authGuard.js";
 
 
 import {

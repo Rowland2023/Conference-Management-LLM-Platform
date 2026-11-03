@@ -1,9 +1,9 @@
 import express from "express";
 
-import { validate } from "../../../../../Shared/Infrastructure/middleware/validate.js";
-import { authGuard } from "../../../../../Shared/Infrastructure/middleware/authGuard.js";
-import { idempotency } from "../../../../../Shared/Infrastructure/middleware/idempotency.js";
-import { correlationIdMiddleware } from "../../../../../Shared/Infrastructure/middleware/correlationId.js";
+import { validate } from "../../../../../shared/infrastructure/middleware/validate.js";
+import { authGuard } from "../../../../../shared/infrastructure/middleware/authGuard.js";
+import { idempotency } from "../../../../../shared/infrastructure/middleware/idempotency.js";
+import { correlationIdMiddleware } from "../../../../../shared/infrastructure/middleware/correlationId.js";
 
 import {
     postJournalEntrySchema,

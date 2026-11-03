@@ -12,4 +12,3 @@ export { JournalEntryReversedEvent }
 
 export { BaseDomainEvent }
   from "./base-domain.event.js";
-export { AccountCreatedEvent } from "./account-created.event.js";

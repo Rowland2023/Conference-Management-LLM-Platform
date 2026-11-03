@@ -1,5 +1,5 @@
 // src/modules/ticket/application/event-handlers/ConferenceCancelledHandler.js
-import { DomainError } from '../../../Shared/errors/index.js';
+import { DomainError } from '../../../shared/errors/index.js';
 
 export class ConferenceCancelledHandler {
   #cancelTicketsByConferenceUseCase; // <-- USE BATCH USE CASE

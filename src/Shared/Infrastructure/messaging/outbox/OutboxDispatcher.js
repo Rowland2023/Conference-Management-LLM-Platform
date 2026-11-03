@@ -1,4 +1,4 @@
-// src/Shared/infrastructure/outbox/OutboxDispatcher.js
+// src/shared/infrastructure/outbox/OutboxDispatcher.js
 
 /**
  * Contract for dispatching outbox events to an external transport.

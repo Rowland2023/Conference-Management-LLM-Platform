@@ -1,5 +1,5 @@
 // src/modules/payment/domain/events/PaymentReleasedEvent.js
-import { DomainEvent } from "../../../../../Shared/domain/DomainEvent.js";
+import { DomainEvent } from "../../../../../shared/domain/DomainEvent.js";
 import { ValidationError } from '../errors/PaymentErrors.js';
 
 const SUPPORTED_CURRENCIES = new Set(['NGN', 'USD', 'GHS', 'KES', 'ZAR', 'EUR', 'GBP']);

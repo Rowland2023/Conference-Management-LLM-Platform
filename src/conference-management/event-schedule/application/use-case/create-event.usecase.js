@@ -1,94 +1,121 @@
-// From src/conference-management/event_schedule/application/use-case/
-// Go up 4 levels to src/, then into shared/application/errors/ApplicationErrors.js
-import {ValidationError, ConflictError} from "../../../../Shared/application/errors/ApplicationErrors.js";
+
+import {
+    ValidationError,
+    ConflictError,
+} from "../../../../Shared/application/errors/ApplicationErrors.js";
+
+import { Event } from "../../domain/entities/event.js";
 
 export class CreateEventUseCase {
     constructor({
         eventRepository,
         outboxRepository,
-        calendarSynchronizationService,
+        uow,
         logger,
-        metrics
+        metrics,
     }) {
+        if (!eventRepository || !outboxRepository || !uow) {
+            throw new TypeError(
+                "CreateEventUseCase requires eventRepository, outboxRepository, and uow."
+            );
+        }
+
         this.eventRepository = eventRepository;
         this.outboxRepository = outboxRepository;
-        this.calendarSynchronizationService = calendarSynchronizationService;
+        this.uow = uow;
         this.logger = logger;
         this.metrics = metrics;
     }
 
     async execute(command) {
+        if (!command || typeof command !== "object") {
+            throw new ValidationError(
+                "Event creation command is required."
+            );
+        }
 
         const {
             title,
             roomId,
+            organizerId,
             startTime,
-            endTime
+            endTime,
+            correlationId,
+            causationId,
         } = command;
 
-        if (!title || !roomId || !startTime || !endTime) {
-            throw new ValidationError('Missing required event information.');
+        if (
+            !title ||
+            !roomId ||
+            !organizerId ||
+            !startTime ||
+            !endTime
+        ) {
+            throw new ValidationError(
+                "Missing required event information."
+            );
         }
 
-        return this.eventRepository.transaction(async (trx) => {
+        // Create the aggregate and let the domain enforce its invariants.
+        const event = Event.create(
+            {
+                title,
+                roomID: roomId,
+                organizerId,
+                startTime,
+                endTime,
+            },
+            {
+                correlationId,
+                causationId,
+            }
+        );
 
-            const hasConflict =
-                await this.eventRepository.existsOverlappingEvent(
-                    {
+        // Persist the aggregate and its domain events atomically.
+        const result = await this.uow.runInTransaction(
+            async (trx) => {
+                await this.eventRepository.lockRoomForScheduling(
+                    roomId,
+                    trx
+                );
+
+                const hasConflict =
+                    await this.eventRepository.existsOverlappingEvent(
                         roomId,
                         startTime,
                         endTime,
+                        null,
                         trx
-                    }
+                    );
+
+                if (hasConflict) {
+                    throw new ConflictError(
+                        "Room already has a scheduled event."
+                    );
+                }
+
+                await this.eventRepository.save(event, trx);
+
+                const domainEvents = event.pullEvents();
+
+                await this.outboxRepository.save(
+                    domainEvents,
+                    trx
                 );
 
-            if (hasConflict) {
-                throw new ConflictError(
-                    'Room already has a scheduled event.'
-                );
+                return {
+                    eventId: event.id,
+                };
             }
+        );
 
-            const event = await this.eventRepository.create(
-                {
-                    title,
-                    roomId,
-                    startTime,
-                    endTime
-                },
-                trx
-            );
-
-            await this.outboxRepository.add(
-                {
-                    eventType: 'EventCreated',
-                    aggregateId: event.id,
-                    payload: {
-                        eventId: event.id,
-                        title: event.title,
-                        roomId: event.roomId,
-                        startTime: event.startTime,
-                        endTime: event.endTime
-                    }
-                },
-                trx
-            );
-
-            this.logger?.info('EVENT_CREATED', {
-                eventId: event.id
-            });
-
-            this.metrics?.increment('event.created');
-
-            //
-            // Optional:
-            // Only if you want synchronous calendar creation.
-            // Otherwise your Outbox Worker should perform this.
-            //
-            // await this.calendarSynchronizationService.createEvent(event);
-
-            return {
-                eventId: event.id
-            };
+        // Execute side effects only after successful transaction commit.
+        this.logger?.info("EVENT_CREATED", {
+            eventId: result.eventId,
         });
+
+        this.metrics?.increment("event.created");
+
+        return result;
     }
 }

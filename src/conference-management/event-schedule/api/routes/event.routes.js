@@ -1,10 +1,9 @@
-
-// src/conference-management/event-schedule/api/routes/event.routes.js
-
 import { Router } from "express";
+// src/conference-management/event-schedule/api/routes/event.routes.js
 
 import { correlationIdMiddleware } from "../../../../Shared/Infrastructure/middleware/correlationId.js";
 import { validate } from "../../../../Shared/Infrastructure/middleware/validate.js";
+
 
 import {
     createEventSchema,

@@ -1,5 +1,5 @@
 // modules/payment/domain/events/PaymentCancelledEvent.js
-import { DomainEvent } from "../../../../../Shared/domain/DomainEvent.js"; // Fix import path
+import { DomainEvent } from "../../../../../shared/domain/DomainEvent.js"; // Fix import path
 import { ValidationError } from '../errors/PaymentErrors.js';
 
 export class PaymentCancelledEvent extends DomainEvent {

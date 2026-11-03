@@ -1,4 +1,4 @@
-import { DomainEvent } from "../../../Shared/domain/DomainEvent.js";
+import { DomainEvent } from "../../../shared/domain/DomainEvent.js";
 import { createHash } from "crypto";
 
 const ALLOWED_CHANNELS = new Set(['email', 'sms', 'push', 'in_app']);

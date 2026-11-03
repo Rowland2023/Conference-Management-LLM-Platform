@@ -1,46 +1,73 @@
+import {
+    ValidationError,
+    NotFoundError,
+} from "../../../../Shared/application/errors/ApplicationErrors.js";
+
 export class CancelEventUseCase {
-  constructor({
-    eventRepository,
-    outboxRepository
-  }) {
-    this.eventRepository = eventRepository;
-    this.outboxRepository = outboxRepository;
-  }
-
-  async execute(eventId) {
-    return this.eventRepository.manager.transaction(
-      async (trx) => {
-
-        const eventRepository =
-          this.eventRepository.withTransaction(trx);
-
-        const outboxRepository =
-          this.outboxRepository.withTransaction(trx);
-
-        const event =
-          await eventRepository.findById(eventId);
-
-        if (!event) {
-          throw new Error("Event not found");
+    constructor({
+        eventRepository,
+        outboxRepository,
+        uow,
+        logger,
+    }) {
+        if (!eventRepository || !outboxRepository || !uow) {
+            throw new TypeError(
+                "CancelEventUseCase requires eventRepository, outboxRepository, and uow."
+            );
         }
 
-        event.cancel();
+        this.eventRepository = eventRepository;
+        this.outboxRepository = outboxRepository;
+        this.uow = uow;
+        this.logger = logger;
+    }
 
-        await eventRepository.save(event);
+    async execute({
+        eventId,
+        cancelledBy,
+        reason = null,
+        correlationId = null,
+        causationId = null,
+    } = {}) {
+        if (!eventId || !cancelledBy) {
+            throw new ValidationError(
+                "Event ID and cancellation actor are required."
+            );
+        }
 
-        await outboxRepository.save({
-          type: "EventCancelled",
-          aggregateId: event.id,
-          payload: {
-            eventId: event.id
-          }
+        const result = await this.uow.runInTransaction(async (trx) => {
+            const event = await this.eventRepository.findByIdForUpdate(
+                eventId,
+                trx
+            );
+
+            if (!event) {
+                throw new NotFoundError("Event not found.");
+            }
+
+            event.cancel(reason, {
+                cancelledBy,
+                correlationId,
+                causationId,
+            });
+
+            await this.eventRepository.save(event, trx);
+
+            const domainEvents = event.pullEvents();
+
+            await this.outboxRepository.save(domainEvents, trx);
+
+            return {
+                eventId: event.id,
+                status: event.status,
+                version: event.version,
+            };
         });
 
-        return {
-          eventId: event.id,
-          status: event.status
-        };
-      }
-    );
-  }
+        this.logger?.info("EVENT_CANCELLED", {
+            eventId: result.eventId,
+        });
+
+        return result;
+    }
 }

@@ -1,6 +1,6 @@
 ﻿
-import { AggregateRoot } from "../../../../Shared/domain/AggregateRoot.js";
-import { DomainInvariantError } from "../../../../Shared/domain/error/DomainErrors.js";
+import { AggregateRoot } from "../../../../shared/domain/AggregateRoot.js";
+import { DomainInvariantError } from "../../../../shared/domain/error/DomainErrors.js";
 
 const VALID_STATUSES = new Set([
   "PENDING",

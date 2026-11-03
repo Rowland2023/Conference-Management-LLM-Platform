@@ -18,12 +18,12 @@
 
 import express from "express";
 
-import { authGuard } from "../../../../Shared/Infrastructure/middleware/authGuard.js";
-import { validate } from "../../../../Shared/Infrastructure/middleware/validate.js";
-import { webhookRawBody } from "../../../../Shared/Infrastructure/middleware/webhookRawBody.js";
-import { rateLimit } from "../../../../Shared/Infrastructure/middleware/rateLimit.js";
-import { ipAllowlist } from "../../../../Shared/Infrastructure/middleware/ipAllowlist.js";
-import { idempotency } from "../../../../Shared/Infrastructure/middleware/idempotency.js";
+import { authGuard } from "../../../../shared/infrastructure/middleware/authGuard.js";
+import { validate } from "../../../../shared/infrastructure/middleware/validate.js";
+import { webhookRawBody } from "../../../../shared/infrastructure/middleware/webhookRawBody.js";
+import { rateLimit } from "../../../../shared/infrastructure/middleware/rateLimit.js";
+import { ipAllowlist } from "../../../../shared/infrastructure/middleware/ipAllowlist.js";
+import { idempotency } from "../../../../shared/infrastructure/middleware/idempotency.js";
 
 import {
     createPaymentSchema,

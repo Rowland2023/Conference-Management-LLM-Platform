@@ -1,6 +1,6 @@
 ﻿
 /**
- * @file src/Shared/infrastructure/messaging/outbox/PostgresOutboxRepository.js
+ * @file src/shared/Infrastructure/messaging/outbox/PostgresOutboxRepository.js
  * @description Transactional Outbox Repository (Knex Implementation)
  */
 
@@ -11,7 +11,6 @@ export class PostgresOutboxRepository {
      * @param {import("knex").Knex} params.db
      */
     constructor({ db }) {
-
         if (!db) {
             throw new Error(
                 "PostgresOutboxRepository requires a Knex instance."
@@ -29,9 +28,6 @@ export class PostgresOutboxRepository {
      * Must execute inside the same transaction
      * as the aggregate persistence.
      *
-     * Supports both legacy BaseDomainEvent getters
-     * and shared DomainEvent metadata.
-     *
      * @param {Object|Object[]} events
      * @param {import("knex").Knex.Transaction} trx
      */
@@ -41,30 +37,56 @@ export class PostgresOutboxRepository {
             ? events
             : [events];
 
+        if (items.length === 0) {
+            return;
+        }
+
         const rows = items.map((event) => {
+
+            if (!event || typeof event !== "object") {
+                throw new Error(
+                    "A valid domain event is required."
+                );
+            }
 
             const metadata = event.metadata ?? {};
 
+            // BaseDomainEvent exposes these as getters.
+            // Metadata fallbacks preserve compatibility
+            // with older event implementations.
+            const eventId =
+                event.eventId ?? metadata.eventId;
+
+            const aggregateId =
+                event.aggregateId ?? metadata.aggregateId;
+
+            const eventName =
+                event.eventName ?? metadata.eventName;
+
+            const occurredAt =
+                event.occurredAt ?? metadata.occurredAt;
+
+            if (!eventId || !aggregateId || !eventName) {
+                throw new Error(
+                    "Domain event requires eventId, aggregateId, and eventName."
+                );
+            }
+
             return {
-                id:
-                    event.eventId ??
-                    metadata.eventId,
+                id: eventId,
 
                 aggregate_type:
                     event.aggregateType ??
                     metadata.aggregateType ??
                     event.constructor.name,
 
-                aggregate_id:
-                    event.aggregateId ??
-                    metadata.aggregateId,
+                aggregate_id: aggregateId,
 
-                event_type:
-                    event.eventName ??
-                    metadata.eventName,
+                event_type: eventName,
 
-                payload:
-                    JSON.stringify(event.payload),
+                payload: JSON.stringify(
+                    event.payload ?? {}
+                ),
 
                 status: "PENDING",
 
@@ -78,9 +100,7 @@ export class PostgresOutboxRepository {
                     metadata.correlationId ?? null,
 
                 created_at:
-                    event.occurredAt ??
-                    metadata.occurredAt ??
-                    trx.fn.now(),
+                    occurredAt ?? trx.fn.now(),
             };
         });
 
@@ -89,10 +109,6 @@ export class PostgresOutboxRepository {
 
     /**
      * Fetch pending events and lock them.
-     *
-     * @param {number} batchSize
-     * @param {number} maxRetries
-     * @returns {Promise<Object[]>}
      */
     async fetchAndLockPending(
         batchSize = 100,
@@ -114,10 +130,11 @@ export class PostgresOutboxRepository {
                 return [];
             }
 
-            const ids = rows.map((row) => row.id);
-
             await trx(this.table)
-                .whereIn("id", ids)
+                .whereIn(
+                    "id",
+                    rows.map((row) => row.id),
+                )
                 .update({
                     status: "PROCESSING",
                 });
@@ -127,9 +144,7 @@ export class PostgresOutboxRepository {
     }
 
     /**
-     * Mark an event as successfully dispatched.
-     *
-     * @param {string} id
+     * Mark event successfully dispatched.
      */
     async markAsDispatched(id) {
 
@@ -142,12 +157,12 @@ export class PostgresOutboxRepository {
     }
 
     /**
-     * Increment retry count and schedule another attempt.
-     *
-     * @param {string} id
-     * @param {string} errorMessage
+     * Increment retry counter.
      */
-    async incrementRetry(id, errorMessage) {
+    async incrementRetry(
+        id,
+        errorMessage,
+    ) {
 
         await this.db(this.table)
             .where({ id })
@@ -162,12 +177,12 @@ export class PostgresOutboxRepository {
     }
 
     /**
-     * Mark an event as permanently failed.
-     *
-     * @param {string} id
-     * @param {string} errorMessage
+     * Mark event permanently failed.
      */
-    async markAsFailed(id, errorMessage) {
+    async markAsFailed(
+        id,
+        errorMessage,
+    ) {
 
         await this.db(this.table)
             .where({ id })

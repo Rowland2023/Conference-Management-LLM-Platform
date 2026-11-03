@@ -1,13 +1,13 @@
-// src/Shared/domain/AggregateRoot.js
+// src/shared/domain/AggregateRoot.js
 
 import { Entity } from "./Entity.js";
 
 export class AggregateRoot extends Entity {
   #domainEvents = [];
 
-  constructor(id, version = 0) {
-  super(id, version);
-}
+  constructor(props = {}) {
+    super(props);
+  }
 
   /**
    * Record a domain event.

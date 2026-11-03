@@ -1,7 +1,7 @@
 // settlement/domain/events/SettlementScheduled.js
 
 import { DomainEvent }
-    from "../../../../../Shared/domain/DomainEvent.js";
+    from "../../../../../shared/domain/DomainEvent.js";
 
 export class SettlementScheduled extends DomainEvent {
 

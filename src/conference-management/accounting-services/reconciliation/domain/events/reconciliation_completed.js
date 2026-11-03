@@ -1,6 +1,6 @@
 // reconciliation/domain/events/ReconciliationCompleted.js
 
-import { DomainEvent } from "../../../../../Shared/domain/DomainEvent.js";
+import { DomainEvent } from "../../../../../shared/domain/DomainEvent.js";
 
 export class ReconciliationCompleted extends DomainEvent {
 

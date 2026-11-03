@@ -5,9 +5,7 @@
  * Immutable Value Object representing monetary amounts in minor units.
  */
 
-import {
-  InvalidArgumentError,
-} from "../error/index.js";
+import { InvalidArgumentError } from "../error/index.js";
 
 export default class Money {
   constructor(amount, currency) {
@@ -41,8 +39,6 @@ export default class Money {
 
   /**
    * Parses an integer amount expressed in minor units.
-   *
-   * Decimal currency amounts such as "10.50" are not accepted.
    *
    * @param {bigint|string|number} value
    * @returns {bigint}

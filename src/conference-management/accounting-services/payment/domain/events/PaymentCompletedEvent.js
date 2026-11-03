@@ -1,5 +1,5 @@
 // modules/payment/domain/events/PaymentCompletedEvent.js
-import { DomainEvent } from "../../../../../Shared/domain/DomainEvent.js"; // Adjust path based on your layout
+import { DomainEvent } from "../../../../../shared/domain/DomainEvent.js"; // Adjust path based on your layout
 import { ValidationError } from "../errors/PaymentErrors.js";
 
 export class PaymentCompletedEvent extends DomainEvent {

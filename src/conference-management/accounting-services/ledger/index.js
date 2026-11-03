@@ -149,7 +149,7 @@ export function createLedgerModule({
         new GetLedgerBalanceUseCase({
 
             accountRepository,
-            journalEntryRepository: journalRepository,
+
             logger,
 
         });

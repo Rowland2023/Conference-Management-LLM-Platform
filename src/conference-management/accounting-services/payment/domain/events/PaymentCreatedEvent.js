@@ -1,6 +1,6 @@
 // modules/payment/domain/events/PaymentCreatedEvent.js
 
-import { DomainEvent } from "../../../../../Shared/domain/DomainEvent.js"; // Adjust path based on your directory structure
+import { DomainEvent } from "../../../../../shared/domain/DomainEvent.js"; // Adjust path based on your directory structure
 import { ValidationError } from "../errors/PaymentErrors.js";
 
 export class PaymentCreatedEvent extends DomainEvent {

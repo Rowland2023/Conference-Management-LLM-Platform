@@ -1,99 +1,91 @@
+/**
+ * @file src/modules/ledger/infrastructure/mappers/account.mapper.js
+ *
+ * Data Mapper responsible for translating between raw PostgreSQL DB rows
+ * and pure AccountAggregate domain entities.
+ */
 
 import AccountAggregate from "../../domain/aggregates/account/account.aggregate.js";
 
 export default class AccountMapper {
   /**
-   * Maps a ledger_accounts database row to the domain aggregate.
+   * Safely converts any numeric value (BigInt, string, number) to a BigInt.
+   * Prevents float precision errors and undefined crashes.
    *
-   * Account balances are derived from journal entries and are not
-   * persisted in ledger_accounts.
+   * @private
+   * @param {string|number|bigint|null|undefined} val
+   * @returns {bigint}
+   */
+  static _toBigInt(val) {
+    if (val === null || val === undefined) return 0n;
+    if (typeof val === "bigint") return val;
+    return BigInt(val.toString());
+  }
+
+  /**
+   * Translates a database row into an AccountAggregate.
    *
-   * @param {Object|null} row
+   * @param {Object|null} rawAccount
    * @returns {AccountAggregate|null}
    */
-  static toDomain(row) {
-    if (!row) {
-      return null;
-    }
+  static toDomain(rawAccount) {
+    if (!rawAccount) return null;
 
     return new AccountAggregate({
-      id: row.id,
-      tenantId: row.tenant_id,
-      accountNumber: row.code,
-      name: row.name,
-      currency: row.currency,
-      type: row.type,
-
-      // The current schema only persists active/inactive.
-      // Do not infer FROZEN or CLOSED from is_active=false.
-      status: row.is_active ? "ACTIVE" : "SUSPENDED",
-
-      postedBalance: 0n,
-      createdAt: row.created_at
-        ? new Date(row.created_at)
-        : new Date(),
+      id: rawAccount.id,
+      tenantId: rawAccount.tenant_id,
+      accountNumber: rawAccount.account_number,
+      name: rawAccount.name,
+      currency: rawAccount.currency,
+      type: rawAccount.type,
+      status: rawAccount.status,
+      balance: {
+        available: this._toBigInt(rawAccount.available_balance),
+        pending: this._toBigInt(rawAccount.pending_balance),
+      },
+      metadata:
+        typeof rawAccount.metadata === "string"
+          ? JSON.parse(rawAccount.metadata)
+          : rawAccount.metadata || {},
+      createdAt: rawAccount.created_at
+        ? new Date(rawAccount.created_at)
+        : null,
+      updatedAt: rawAccount.updated_at
+        ? new Date(rawAccount.updated_at)
+        : null,
     });
   }
 
   /**
-   * Maps an aggregate to columns defined by ledger_accounts.
+   * Translates an AccountAggregate into a persistence object.
    *
-   * @param {AccountAggregate|Object|null} aggregate
+   * @param {AccountAggregate} aggregate
    * @returns {Object|null}
    */
   static toPersistence(aggregate) {
-    if (!aggregate) {
-      return null;
-    }
+    if (!aggregate) return null;
 
-    const data =
+    const json =
       typeof aggregate.toJSON === "function"
         ? aggregate.toJSON()
         : aggregate;
 
-    const status = data.status?.value ?? data.status;
-    const code = data.accountNumber ?? data.code;
-    const currency = data.currency?.toUpperCase();
-    const type = data.type?.toUpperCase();
-
-    if (!data.id) {
-      throw new Error("Account id is required.");
-    }
-
-    if (!data.tenantId) {
-      throw new Error("Account tenantId is required.");
-    }
-
-    if (!code || typeof code !== "string") {
-      throw new Error("Account code is required.");
-    }
-
-    if (!data.name || typeof data.name !== "string") {
-      throw new Error("Account name is required.");
-    }
-
-    if (!currency || !/^[A-Z]{3}$/.test(currency)) {
-      throw new Error("Account currency must be a three-letter code.");
-    }
-
-    if (
-      !["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]
-        .includes(type)
-    ) {
-      throw new Error("Account type is invalid.");
-    }
+    const balance = json.balance || aggregate.balance || {};
 
     return {
-      id: data.id,
-      tenant_id: data.tenantId,
-      code,
-      name: data.name,
-      type,
-      currency,
-      is_active: status === "ACTIVE",
-      created_at: data.createdAt
-        ? new Date(data.createdAt)
-        : new Date(),
+      id: json.id,
+      tenant_id: json.tenantId,
+      account_number: json.accountNumber,
+      name: json.name,
+      currency: json.currency,
+      type: json.type,
+      status: json.status,
+      available_balance: this._toBigInt(balance.available).toString(),
+      pending_balance: this._toBigInt(balance.pending).toString(),
+      metadata: JSON.stringify(json.metadata ?? {}),
+      created_at: json.createdAt
+        ? new Date(json.createdAt)
+        : undefined,
       updated_at: new Date(),
     };
   }

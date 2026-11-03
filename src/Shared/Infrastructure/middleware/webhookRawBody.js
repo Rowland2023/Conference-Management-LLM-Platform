@@ -1,4 +1,4 @@
-// src/Shared/infrastructure/middleware/webhookRawBody.js
+// src/shared/infrastructure/middleware/webhookRawBody.js
 
 import express from "express";
 

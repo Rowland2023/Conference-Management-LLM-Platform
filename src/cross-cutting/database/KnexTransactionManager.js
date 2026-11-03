@@ -4,7 +4,7 @@
  * Knex implementation of the TransactionManager application port.
  */
 
-const TransactionManager = require('../../Shared/application/persistence/TransactionManager');
+const TransactionManager = require('../../shared/application/persistence/TransactionManager');
 
 class KnexTransactionManager extends TransactionManager {
   /**

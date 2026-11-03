@@ -1,60 +1,40 @@
+
 import Joi from "joi";
 
 /**
- * Shared validators
+ * Shared event scheduling validators.
  */
-const startDate = Joi.date()
+const startTime = Joi.date()
     .iso()
     .greater("now")
     .required();
 
-const endDate = Joi.date()
+const endTime = Joi.date()
     .iso()
-    .greater(Joi.ref("startDate"))
+    .greater(Joi.ref("startTime"))
     .required();
 
 /**
- * Base event fields
+ * Create Event
+ *
+ * organizerId is deliberately excluded.
+ * It must come from the authenticated user.
  */
-const eventFields = {
+export const createEventSchema = Joi.object({
     title: Joi.string()
+        .trim()
         .min(3)
         .max(150)
         .required(),
 
-    description: Joi.string()
-        .max(2000)
-        .allow("")
-        .optional(),
-
-    startDate,
-
-    endDate,
-
-    location: Joi.string()
-        .min(2)
-        .max(255)
+    roomId: Joi.string()
+        .uuid()
         .required(),
 
-    capacity: Joi.number()
-        .integer()
-        .min(1)
-        .max(100000)
-        .required(),
-};
+    startTime,
 
-/**
- * Create Event
- */
-export const createEventSchema = Joi.object(eventFields);
-
-/**
- * Update Event
- */
-export const updateEventSchema = createEventSchema.fork(
-    Object.keys(eventFields),
-    schema => schema.optional()
-);
+    endTime,
+});
 
 /**
  * Event identifier
@@ -85,6 +65,7 @@ export const eventQuerySchema = Joi.object({
  * Event rescheduling
  */
 export const rescheduleEventSchema = Joi.object({
-    startDate,
-    endDate,
+    startTime,
+
+    endTime,
 });

@@ -1,5 +1,5 @@
 // src/modules/ticket/domain/events/TicketReserved.js
-import { DomainEvent } from "../../../../Shared/domain/DomainEvent.js";
+import { DomainEvent } from "../../../../shared/domain/DomainEvent.js";
 
 export class TicketReserved extends DomainEvent {
   static EVENT_NAME = "ticket.reserved";

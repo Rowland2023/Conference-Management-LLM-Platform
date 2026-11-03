@@ -1,5 +1,5 @@
 /**
- * @file src/Shared/infrastructure/messaging/kafka/KafkaConnection.js
+ * @file src/shared/infrastructure/messaging/kafka/KafkaConnection.js
  * @description Shared Kafka client lifecycle.
  */
 

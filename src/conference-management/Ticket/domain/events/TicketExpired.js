@@ -1,6 +1,6 @@
 // src/modules/ticket/domain/events/TicketExpired.js
 
-import { DomainEvent } from "../../../../Shared/domain/DomainEvent.js";
+import { DomainEvent } from "../../../../shared/domain/DomainEvent.js";
 
 export class TicketExpired extends DomainEvent {
   static EVENT_NAME = "ticket.expired";

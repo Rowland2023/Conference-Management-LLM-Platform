@@ -1,4 +1,4 @@
-import { DomainEvent } from '../../../Shared/DomainEvent.js';
+import { DomainEvent } from '../../../shared/DomainEvent.js';
 
 export class RegistrationUpdatedEvent extends DomainEvent {
   constructor({

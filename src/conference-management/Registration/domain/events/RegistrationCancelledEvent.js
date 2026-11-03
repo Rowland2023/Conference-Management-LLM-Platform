@@ -1,7 +1,7 @@
 // src/modules/registration/domain/events/RegistrationCancelledEvent.js
 
-import { DomainEvent } from "../../../../Shared/domain/DomainEvent.js"; // Adjust relative path as needed
-import { DomainInvariantError } from "../../../../Shared/domain/error/DomainErrors.js";
+import { DomainEvent } from "../../../../shared/domain/DomainEvent.js"; // Adjust relative path as needed
+import { DomainInvariantError } from "../../../../shared/domain/error/DomainErrors.js";
 
 /**
  * Domain Event fired immediately after an existing registration aggregate 

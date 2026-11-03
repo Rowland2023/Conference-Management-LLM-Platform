@@ -1,7 +1,7 @@
 
 // src/conference-management/accounting-services/payment/domain/entities/Payment.js
 
-import { AggregateRoot } from "../../../../../Shared/domain/AggregateRoot.js";
+import { AggregateRoot } from "../../../../../shared/domain/AggregateRoot.js";
 import { Money } from "../value-objects/Money.js";
 import { PaymentStatus } from "../value-objects/PaymentStatus.js";
 import {

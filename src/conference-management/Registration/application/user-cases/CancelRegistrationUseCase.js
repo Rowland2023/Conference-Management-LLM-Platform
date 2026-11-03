@@ -2,7 +2,7 @@
 import {
   NotFoundError,
   UnauthorizedError,
-} from "../../../../Shared/domain/error/DomainErrors.js";
+} from "../../../../shared/domain/error/DomainErrors.js";
 
 export class CancelRegistrationUseCase {
   constructor({

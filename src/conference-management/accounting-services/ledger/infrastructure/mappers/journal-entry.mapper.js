@@ -1,3 +1,4 @@
+
 /**
  * @file journal-entry.mapper.js
  *
@@ -26,7 +27,9 @@ export default class JournalEntryMapper {
 
   static #toBigInt(value) {
     if (value === null || value === undefined) {
-      return 0n;
+      throw new TypeError(
+        "Journal line amount is required."
+      );
     }
 
     if (typeof value === "bigint") {
@@ -37,36 +40,38 @@ export default class JournalEntryMapper {
   }
 
   static #mapLineToDomain(line) {
-  return {
-    id: line.id,
-    accountId: line.account_id,
-    amount: this.#toBigInt(line.amount),
-    direction: line.direction,
-    currency: line.currency,
-  };
-}
+    return {
+      id: line.id,
+      accountId: line.account_id,
+      amount: this.#toBigInt(line.amount),
+      direction: line.direction,
+      currency: line.currency,
+    };
+  }
 
   static toDomain(row, lineRows = []) {
-  if (!row) {
-    return null;
+    if (!row) {
+      return null;
+    }
+
+    const entry = new JournalEntryAggregate({
+      id: row.id,
+      idempotencyKey: row.idempotency_key,
+      description: row.description,
+      currency: row.currency,
+      status: row.status,
+      postedAt: row.posted_at
+        ? new Date(row.posted_at)
+        : null,
+      metadata: this.#parseMetadata(row.metadata),
+    });
+
+    for (const line of lineRows) {
+      entry.addLine(this.#mapLineToDomain(line));
+    }
+
+    return entry;
   }
-
-  const entry = new JournalEntryAggregate({
-    id: row.id,
-    idempotencyKey: row.idempotency_key,
-    description: row.description,
-    currency: row.currency,
-    status: row.status,
-    postedAt: row.posted_at ? new Date(row.posted_at) : null,
-    metadata: this.#parseMetadata(row.metadata),
-  });
-
-  for (const line of lineRows) {
-    entry.addLine(this.#mapLineToDomain(line));
-  }
-
-  return entry;
-}
 
   static toPersistence(aggregate) {
     if (!aggregate) {
@@ -86,7 +91,9 @@ export default class JournalEntryMapper {
       description: json.description,
       currency: json.currency,
       status: json.status,
-      posted_at: json.postedAt ? new Date(json.postedAt) : new Date(),
+      posted_at: json.postedAt
+        ? new Date(json.postedAt)
+        : new Date(),
       metadata: JSON.stringify(json.metadata ?? {}),
     };
 

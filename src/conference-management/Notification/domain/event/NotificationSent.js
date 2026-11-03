@@ -1,6 +1,6 @@
 // src/modules/notification/domain/events/NotificationSent.js
-import { DomainEvent } from "../../../../Shared/domain/DomainEvent.js"; 
-import { ValidationError } from "../../../../Shared/domain/errors/DomainError.js";
+import { DomainEvent } from "../../../../shared/domain/DomainEvent.js"; 
+import { ValidationError } from "../../../../shared/domain/errors/DomainError.js";
 
 const ALLOWED_CHANNELS = new Set(['email', 'sms', 'push', 'in_app']);
 

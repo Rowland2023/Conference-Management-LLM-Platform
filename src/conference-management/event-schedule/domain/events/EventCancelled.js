@@ -1,4 +1,3 @@
-
 import { DomainEvent } from "../../../../Shared/domain/DomainEvent.js";
 import { DomainInvariantError } from "../../../../Shared/domain/error/DomainErrors.js";
 
@@ -7,27 +6,21 @@ export class EventCancelled extends DomainEvent {
     eventId,
     cancelledBy,
     reason = null,
+    occurredAt = new Date(),
     correlationId = null,
     causationId = null,
-    occurredAt = new Date(),
     eventInstanceId,
   }) {
     if (typeof eventId !== "string" || !eventId.trim()) {
-      throw new DomainInvariantError(
-        "EventCancelled: eventId is required.",
-      );
+      throw new DomainInvariantError("EventCancelled: eventId is required.");
     }
 
     if (typeof cancelledBy !== "string" || !cancelledBy.trim()) {
-      throw new DomainInvariantError(
-        "EventCancelled: cancelledBy is required.",
-      );
+      throw new DomainInvariantError("cancelledBy is required for audit.");
     }
 
     const parsedOccurred =
-      occurredAt instanceof Date
-        ? new Date(occurredAt.getTime())
-        : new Date(occurredAt);
+      occurredAt instanceof Date ? occurredAt : new Date(occurredAt);
 
     if (Number.isNaN(parsedOccurred.getTime())) {
       throw new DomainInvariantError(
@@ -36,18 +29,16 @@ export class EventCancelled extends DomainEvent {
     }
 
     const normalizedReason =
-      typeof reason === "string" && reason.trim()
-        ? reason.trim()
-        : null;
+      typeof reason === "string" && reason.trim() ? reason.trim() : null;
 
     super({
       eventName: "event.cancelled",
       eventVersion: 1,
       aggregateId: eventId.trim(),
+      eventId: eventInstanceId,
       occurredAt: parsedOccurred,
       correlationId,
       causationId,
-      ...(eventInstanceId ? { eventId: eventInstanceId } : {}),
     });
 
     this.payload = Object.freeze({
@@ -69,45 +60,32 @@ export class EventCancelled extends DomainEvent {
   }
 
   static fromJSON(json) {
-    if (
-      !json?.payload ||
-      typeof json.payload !== "object" ||
-      Array.isArray(json.payload)
-    ) {
+    if (!json || !json.payload || typeof json.payload !== "object") {
       throw new DomainInvariantError(
         "EventCancelled: Cannot rehydrate from an invalid payload.",
       );
     }
 
-    const metadata = json.metadata ?? {};
-    const payload = json.payload;
+    const { metadata, payload } = json;
 
-    if (
-      typeof payload.eventId !== "string" ||
-      !payload.eventId.trim()
-    ) {
+    if (!metadata || typeof metadata !== "object") {
       throw new DomainInvariantError(
-        "EventCancelled: eventId is required during rehydration.",
+        "EventCancelled: Historical metadata is required.",
       );
     }
 
-    const aggregateId =
-      metadata.aggregateId ?? json.aggregateId ?? payload.eventId;
-
-    if (
-      typeof aggregateId !== "string" ||
-      aggregateId.trim() !== payload.eventId.trim()
-    ) {
+    if (!metadata.occurredAt) {
       throw new DomainInvariantError(
-        "EventCancelled: aggregateId mismatch during rehydration.",
+        "EventCancelled: Historical occurredAt is required.",
       );
     }
 
-    const occurredAt = metadata.occurredAt ?? json.occurredAt;
-
-    if (occurredAt == null) {
+    if (
+      !metadata.aggregateId ||
+      metadata.aggregateId !== payload.eventId
+    ) {
       throw new DomainInvariantError(
-        "EventCancelled: occurredAt is required during rehydration.",
+        "EventCancelled: aggregateId does not match payload eventId.",
       );
     }
 
@@ -115,10 +93,10 @@ export class EventCancelled extends DomainEvent {
       eventId: payload.eventId,
       cancelledBy: payload.cancelledBy,
       reason: payload.reason,
-      correlationId: metadata.correlationId ?? json.correlationId ?? null,
-      causationId: metadata.causationId ?? json.causationId ?? null,
-      occurredAt,
-      eventInstanceId: metadata.eventId ?? json.eventId,
+      occurredAt: metadata.occurredAt,
+      correlationId: metadata.correlationId,
+      causationId: metadata.causationId,
+      eventInstanceId: metadata.eventId,
     });
   }
 }

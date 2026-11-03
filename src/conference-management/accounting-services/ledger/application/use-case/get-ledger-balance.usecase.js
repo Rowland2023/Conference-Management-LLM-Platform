@@ -1,38 +1,30 @@
 /**
  * @file get-ledger-balance.usecase.js
  *
- * Retrieves an account's posted ledger balance as of a specific date.
- * Pending and available balances are not calculated until hold accounting
- * is backed by a verified persistence schema.
+ * Retrieves an account's ledger balance as of a specific date.
  */
 
 import {
   ValidationError,
   NotFoundError,
-} from "../../../../../Shared/application/errors/ApplicationErrors.js";
+} from "../../../../../shared/application/errors/ApplicationErrors.js";
 
-const toBigIntStrict = (value, fieldName) => {
+const toBigIntSafe = (value) => {
   if (typeof value === "bigint") {
     return value;
   }
 
-  if (
-    typeof value === "number" &&
-    Number.isSafeInteger(value)
-  ) {
-    return BigInt(value);
+  if (value === null || value === undefined || value === "") {
+    return 0n;
   }
 
-  if (
-    typeof value === "string" &&
-    /^-?\d+$/.test(value.trim())
-  ) {
-    return BigInt(value.trim());
+  const normalized = String(value).trim().split(".")[0];
+
+  if (!normalized || Number.isNaN(Number(normalized))) {
+    return 0n;
   }
 
-  throw new TypeError(
-    `${fieldName} must be an integer amount in minor units.`
-  );
+  return BigInt(normalized);
 };
 
 export class GetLedgerBalanceUseCase {
@@ -49,36 +41,18 @@ export class GetLedgerBalanceUseCase {
   }
 
   async execute({
-    tenantId,
     accountId,
     currency,
     asOfDate,
     requestedBy,
   }) {
-    this.validateInput({
-      tenantId,
-      accountId,
-      asOfDate,
-    });
-
-    if (
-      !this.journalEntryRepository ||
-      typeof this.journalEntryRepository.calculateAccountBalance !==
-        "function"
-    ) {
-      throw new Error(
-        "Ledger balance repository is not configured."
-      );
-    }
+    this.validateInput(accountId, asOfDate);
 
     const effectiveDate = asOfDate
       ? new Date(asOfDate)
       : new Date();
 
-    const account = await this.loadAccount(
-      tenantId,
-      accountId
-    );
+    const account = await this.loadAccount(accountId);
 
     const targetCurrency = this.resolveCurrency(
       account,
@@ -87,17 +61,21 @@ export class GetLedgerBalanceUseCase {
 
     const balances =
       await this.journalEntryRepository.calculateAccountBalance({
-        tenantId,
         accountId: account.id,
         currency: targetCurrency,
         asOfDate: effectiveDate,
-        accountType: account.type,
       });
 
-    const postedBalance = toBigIntStrict(
-      balances?.postedBalance,
-      "postedBalance"
+    const postedBalance = toBigIntSafe(
+      balances.postedBalance
     );
+
+    const pendingBalance = toBigIntSafe(
+      balances.pendingBalance
+    );
+
+    const availableBalance =
+      postedBalance - pendingBalance;
 
     this.recordMetrics({
       account,
@@ -111,37 +89,29 @@ export class GetLedgerBalanceUseCase {
       accountName: account.name,
       currency: targetCurrency,
       balance: postedBalance.toString(),
-      pendingBalance: null,
-      availableBalance: null,
+      pendingBalance: pendingBalance.toString(),
+      availableBalance:
+        availableBalance.toString(),
       asOf: effectiveDate.toISOString(),
     };
   }
 
-  validateInput({ tenantId, accountId, asOfDate }) {
+  validateInput(accountId, asOfDate) {
     if (
-      typeof tenantId !== "string" ||
-      tenantId.trim() === ""
-    ) {
-      throw new ValidationError(
-        "tenantId must be a valid string."
-      );
-    }
-
-    if (
-      typeof accountId !== "string" ||
-      accountId.trim() === ""
+      !accountId ||
+      typeof accountId !== "string"
     ) {
       throw new ValidationError(
         "accountId must be a valid string."
       );
     }
 
-    if (asOfDate !== undefined && asOfDate !== null) {
+    if (asOfDate) {
       const date = new Date(asOfDate);
 
       if (Number.isNaN(date.getTime())) {
         throw new ValidationError(
-          "asOfDate must be a valid date."
+          "asOfDate must be a valid ISO-8601 date."
         );
       }
 
@@ -153,11 +123,11 @@ export class GetLedgerBalanceUseCase {
     }
   }
 
-  async loadAccount(tenantId, accountId) {
-    const account = await this.accountRepository.findById(
-      tenantId,
-      accountId
-    );
+  async loadAccount(accountId) {
+    const account =
+      await this.accountRepository.findById(
+        accountId
+      );
 
     if (!account) {
       throw new NotFoundError(
@@ -179,17 +149,9 @@ export class GetLedgerBalanceUseCase {
 
   resolveCurrency(account, requestedCurrency) {
     const currency = (
-      requestedCurrency ?? account.currency
+      requestedCurrency ??
+      account.currency
     )?.toUpperCase();
-
-    if (
-      typeof currency !== "string" ||
-      currency.trim() === ""
-    ) {
-      throw new ValidationError(
-        "A valid currency is required."
-      );
-    }
 
     if (
       account.currency &&
@@ -211,7 +173,8 @@ export class GetLedgerBalanceUseCase {
   }) {
     const actor =
       typeof requestedBy === "object"
-        ? requestedBy?.id ?? requestedBy?.userId
+        ? requestedBy?.id ??
+          requestedBy?.userId
         : requestedBy;
 
     this.logger?.info({

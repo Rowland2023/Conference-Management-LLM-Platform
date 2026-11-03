@@ -1,24 +1,28 @@
+
 export class EventController {
-    /**
-     * @param {Object} deps
-     * @param {import('../../ports/ILogger.js').ILogger} deps.logger
-     */
     constructor({
         createEventUseCase,
         getEventByIdUseCase,
         listEventsUseCase,
         rescheduleEventUseCase,
         cancelEventUseCase,
-        logger // Injected interface port
+        logger,
     }) {
+        if (!logger) {
+            throw new TypeError(
+                "EventController requires a logger."
+            );
+        }
+
         this.createEventUseCase = createEventUseCase;
         this.getEventByIdUseCase = getEventByIdUseCase;
         this.listEventsUseCase = listEventsUseCase;
         this.rescheduleEventUseCase = rescheduleEventUseCase;
         this.cancelEventUseCase = cancelEventUseCase;
-        
-        // Scope the logger to this specific controller context
-        this.logger = logger.child({ context: "EventController" });
+
+        this.logger = logger.child({
+            context: "EventController",
+        });
 
         this.createEvent = this.createEvent.bind(this);
         this.listEvents = this.listEvents.bind(this);
@@ -27,84 +31,172 @@ export class EventController {
         this.cancelEvent = this.cancelEvent.bind(this);
     }
 
+    /**
+     * Serialize an Event aggregate into its public API representation.
+     *
+     * @param {Object} event
+     * @returns {Object}
+     */
+    serializeEvent(event) {
+        return {
+            id: event.id,
+            title: event.title,
+            roomId: event.roomID,
+            organizerId: event.organizerId,
+            startTime: event.startTime,
+            endTime: event.endTime,
+            status: event.status,
+            version: event.version,
+        };
+    }
+
+    /**
+     * Create a conference event.
+     */
     async createEvent(req, res, next) {
         this.logger.info("HTTP request received: Create Event");
-        try {
-            const result = await this.createEventUseCase.execute(req.body);
 
-            this.logger.debug("HTTP response generated: 201 Created");
+        try {
+            if (!req.user?.id) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Authenticated organizer information is required.",
+                });
+            }
+
+            const body = req.validated?.body ?? req.body;
+
+            const result = await this.createEventUseCase.execute({
+                ...body,
+                organizerId: req.user.id,
+                correlationId: req.correlationId,
+            });
+
+            this.logger.info("HTTP response generated: 201 Created", {
+                eventId: result.eventId,
+            });
+
             return res.status(201).json({
                 success: true,
-                data: result
+                data: result,
             });
         } catch (error) {
-            // We do NOT use logger.error() here because your 
-            // TelemetryUseCaseDecorator is already logging the full exception!
-            next(error);
+            return next(error);
         }
     }
 
+    /**
+     * List conference events.
+     */
     async listEvents(req, res, next) {
         this.logger.info("HTTP request received: List Events");
+
         try {
-            const result = await this.listEventsUseCase.execute(req.query);
+            const query = req.validated?.query ?? req.query;
+
+            const result = await this.listEventsUseCase.execute(query);
 
             return res.status(200).json({
                 success: true,
-                data: result
+                data: result,
             });
         } catch (error) {
-            next(error);
+            return next(error);
         }
     }
 
+    /**
+     * Retrieve a conference event by ID.
+     */
     async getEventById(req, res, next) {
-        this.logger.info("HTTP request received: Get Event By ID", { eventId: req.params.id });
+        const eventId = req.validated?.params?.id ?? req.params.id;
+
+        this.logger.info("HTTP request received: Get Event By ID", {
+            eventId,
+        });
+
         try {
-            const result = await this.listEventsUseCase.execute(
-    req.validated?.query ?? req.query
-);
+            const event = await this.getEventByIdUseCase.execute({
+                eventId,
+            });
 
             return res.status(200).json({
                 success: true,
-                data: result
+                data: this.serializeEvent(event),
             });
         } catch (error) {
-            next(error);
+            return next(error);
         }
     }
 
+    /**
+     * Reschedule a conference event.
+     */
     async rescheduleEvent(req, res, next) {
-        this.logger.info("HTTP request received: Reschedule Event", { eventId: req.params.id });
+        const eventId = req.params.id;
+
+        this.logger.info("HTTP request received: Reschedule Event", {
+            eventId,
+        });
+
         try {
+            if (!req.user?.id) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Authenticated user information is required.",
+                });
+            }
+
+            const body = req.validated?.body ?? req.body;
+
             const result = await this.rescheduleEventUseCase.execute({
-                eventId: req.params.id,
-                ...req.body
+                eventId,
+                startTime: body.startTime,
+                endTime: body.endTime,
+                rescheduledBy: req.user.id,
+                correlationId: req.correlationId,
             });
 
             return res.status(200).json({
                 success: true,
-                data: result
+                data: result,
             });
         } catch (error) {
-            next(error);
+            return next(error);
         }
     }
 
+    /**
+     * Cancel a conference event.
+     */
     async cancelEvent(req, res, next) {
-        this.logger.info("HTTP request received: Cancel Event", { eventId: req.params.id });
+        const eventId = req.params.id;
+
+        this.logger.info("HTTP request received: Cancel Event", {
+            eventId,
+        });
+
         try {
+            if (!req.user?.id) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Authenticated user information is required.",
+                });
+            }
+
             const result = await this.cancelEventUseCase.execute({
-                eventId: req.params.id
+                eventId,
+                cancelledBy: req.user.id,
+                reason: req.body?.reason ?? null,
+                correlationId: req.correlationId,
             });
 
             return res.status(200).json({
                 success: true,
-                data: result
+                data: result,
             });
-                } catch (error) {
-            console.error("[EventController.listEvents] Failure:", error);
-            next(error);
+        } catch (error) {
+            return next(error);
         }
     }
 }

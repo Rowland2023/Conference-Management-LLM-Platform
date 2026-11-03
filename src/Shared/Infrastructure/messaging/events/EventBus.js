@@ -5,7 +5,7 @@ export class EventBus {
   /**
    * Publishes a single domain event to the message bus.
    * @abstract
-   * @param {import('../../../Shared/domain/DomainEvent.js').DomainEvent} event 
+   * @param {import('../../../shared/domain/DomainEvent.js').DomainEvent} event 
    * @returns {Promise<void>}
    */
   async publish(event) {
@@ -16,7 +16,7 @@ export class EventBus {
    * Publishes multiple domain events atomically if supported by the broker.
    * Default implementation publishes sequentially.
    * @abstract
-   * @param {import('../../../Shared/domain/DomainEvent.js').DomainEvent[]} events 
+   * @param {import('../../../shared/domain/DomainEvent.js').DomainEvent[]} events 
    * @returns {Promise<void>}
    */
   async publishBatch(events) {
@@ -29,7 +29,7 @@ export class EventBus {
    * Subscribes to domain events by name. Returns unsubscribe function.
    * @abstract
    * @param {string} eventName 
-   * @param {function(import('../../../Shared/domain/DomainEvent.js').DomainEvent): Promise<void>} handler 
+   * @param {function(import('../../../shared/domain/DomainEvent.js').DomainEvent): Promise<void>} handler 
    * @returns {() => void} Unsubscribe function
    */
   subscribe(eventName, handler) {

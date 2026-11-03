@@ -1,29 +1,42 @@
-// src/Shared/infrastructure/middleware/correlationId.js
 
 import crypto from "node:crypto";
 
 /**
- * Assigns or propagates a Correlation ID for every incoming request.
+ * Assigns or propagates a valid UUID correlation ID.
  *
  * Priority:
- * 1. Existing X-Correlation-Id header
- * 2. Existing X-Request-Id header
+ * 1. Valid X-Correlation-Id UUID
+ * 2. Valid X-Request-Id UUID
  * 3. Generate a new UUID
  */
 export function correlationIdMiddleware(req, res, next) {
-  const correlationId =
-    req.headers["x-correlation-id"] ||
-    req.headers["x-request-id"] ||
-    crypto.randomUUID();
+    const correlationHeader =
+        req.headers["x-correlation-id"];
 
-  // Attach to request
-  req.correlationId = correlationId;
+    const requestHeader =
+        req.headers["x-request-id"];
 
-  // Make available to downstream middleware/controllers
-  res.locals.correlationId = correlationId;
+    const candidate =
+        typeof correlationHeader === "string"
+            ? correlationHeader
+            : typeof requestHeader === "string"
+                ? requestHeader
+                : null;
 
-  // Return to client
-  res.setHeader("X-Correlation-Id", correlationId);
+    const correlationId =
+        candidate && crypto.randomUUID
+            ? (
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)
+                    ? candidate
+                    : crypto.randomUUID()
+            )
+            : crypto.randomUUID();
 
-  next();
+    req.correlationId = correlationId;
+
+    res.locals.correlationId = correlationId;
+
+    res.setHeader("X-Correlation-Id", correlationId);
+
+    next();
 }

@@ -2,7 +2,7 @@ import {
   ValidationError,
   NotFoundError,
   BusinessRuleViolationError,
-} from "../../../../../Shared/application/errors/ApplicationErrors.js";
+} from "../../../../../shared/application/errors/ApplicationErrors.js";
 
 export class ReverseJournalEntryUseCase {
   constructor({ journalEntryRepository, accountRepository, outboxRepository, unitOfWork, logger }) {

@@ -1,3 +1,4 @@
+
 /**
  * @file domain/RefundErrors.js
  * @description Domain-specific exceptions for the Refund bounded context.
@@ -32,19 +33,28 @@ class RefundDomainError extends Error {
 
 class InvalidRefundStateError extends RefundDomainError {
   constructor(message, details = {}) {
-    super(message, "INVALID_REFUND_STATE", details);
+    super(
+      message,
+      "INVALID_REFUND_STATE",
+      details
+    );
   }
 }
 
+/**
+ * Thrown when a refund reason is missing or invalid.
+ */
 class InvalidRefundReasonError extends RefundDomainError {
   constructor(message, details = {}) {
-    super(message, "INVALID_REFUND_REASON", details);
+    super(
+      message,
+      "INVALID_REFUND_REASON",
+      details
+    );
   }
 }
 
-
 class ExceededRefundLimitError extends RefundDomainError {
-
   /**
    * @param {number} requested - Requested major refund amount
    * @param {number} available - Available refundable limit
@@ -55,10 +65,8 @@ class ExceededRefundLimitError extends RefundDomainError {
     available,
     currency = "NGN"
   ) {
-
     const message =
       `Requested refund of ${requested} ${currency} exceeds remaining refundable limit of ${available} ${currency}.`;
-
 
     super(
       message,
@@ -70,27 +78,19 @@ class ExceededRefundLimitError extends RefundDomainError {
       }
     );
 
-
     this.requested = requested;
     this.available = available;
     this.currency = currency;
-
   }
-
 }
 
-
-
 class CurrencyMismatchError extends RefundDomainError {
-
   constructor(
     expectedCurrency,
     actualCurrency
   ) {
-
     const message =
       `Currency mismatch: expected ${expectedCurrency}, but received ${actualCurrency}.`;
-
 
     super(
       message,
@@ -101,15 +101,10 @@ class CurrencyMismatchError extends RefundDomainError {
       }
     );
 
-
     this.expectedCurrency = expectedCurrency;
     this.actualCurrency = actualCurrency;
-
   }
-
 }
-
-
 
 export {
   RefundDomainError,

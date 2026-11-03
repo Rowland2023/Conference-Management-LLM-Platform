@@ -1,7 +1,8 @@
-﻿import {
+
+import {
   ValidationError,
   ConflictError,
-} from "../../../../../Shared/application/errors/ApplicationErrors.js";
+} from "../../../../../shared/application/errors/ApplicationErrors.js";
 
 import {
   UnbalancedEntryError,
@@ -13,6 +14,7 @@ import {
 
 
 export class PostJournalEntryUseCase {
+
   constructor({
     journalEntryRepository,
     accountRepository,
@@ -21,12 +23,24 @@ export class PostJournalEntryUseCase {
     logger,
     metrics,
   }) {
-    this.journalEntryRepository = journalEntryRepository;
-    this.accountRepository = accountRepository;
-    this.unitOfWork = unitOfWork;
-    this.outboxRepository = outboxRepository;
-    this.logger = logger;
-    this.metrics = metrics;
+
+    this.journalEntryRepository =
+      journalEntryRepository;
+
+    this.accountRepository =
+      accountRepository;
+
+    this.unitOfWork =
+      unitOfWork;
+
+    this.outboxRepository =
+      outboxRepository;
+
+    this.logger =
+      logger;
+
+    this.metrics =
+      metrics;
   }
 
   async execute({
@@ -36,6 +50,7 @@ export class PostJournalEntryUseCase {
     metadata = {},
     requestedBy,
   }) {
+
     this.validateInput({
       idempotencyKey,
       lines,
@@ -53,90 +68,109 @@ export class PostJournalEntryUseCase {
       };
     }
 
-    const normalizedLines = this.normalizeLines(lines);
+    const normalizedLines =
+      this.normalizeLines(lines);
 
-    this.validateBalancedEntry(normalizedLines);
+    this.validateBalancedEntry(
+      normalizedLines
+    );
 
     try {
-      return await this.unitOfWork.execute(async (session) => {
-        const accountIds = [
-          ...new Set(
-            normalizedLines.map(
-              (line) => line.accountId
-            )
-          ),
-        ];
 
-        const accounts =
-          await this.accountRepository.findAndLockByIds(
+      return await this.unitOfWork.execute(
+        async (session) => {
+
+          const accountIds = [
+            ...new Set(
+              normalizedLines.map(
+                (line) => line.accountId
+              )
+            ),
+          ];
+
+          const accounts =
+            await this.accountRepository.findAndLockByIds(
+              accountIds,
+              { session }
+            );
+
+          this.validateAccounts(
+            accounts,
             accountIds,
-            { session }
+            normalizedLines
           );
 
-        this.validateAccounts(
-          accounts,
-          accountIds,
-          normalizedLines
-        );
+          const journalEntry =
+            await this.journalEntryRepository.create(
+              {
+                idempotencyKey,
+                description,
+                currency: normalizedLines[0].currency,
+                status: "POSTED",
+                postedAt: new Date(),
+                metadata,
+                lines: normalizedLines,
+              },
+              { session }
+            );
 
-        const journalEntry =
-          await this.journalEntryRepository.create(
-            {
-              idempotencyKey,
-              description,
-              currency: normalizedLines[0].currency,
-              status: "POSTED",
-              postedAt: new Date(),
-              metadata,
-              lines: normalizedLines,
-            },
-            { session }
-          );
+          // The repository uses amountInMinorUnits.
+          // JournalEntryPostedEvent expects amount.
+          // Adapt the shape without changing normalizedLines.
+          const eventLines =
+            normalizedLines.map((line) => ({
+              accountId: line.accountId,
+              amount: line.amountInMinorUnits,
+              direction: line.direction,
+              currency: line.currency,
+            }));
 
-        const event = new JournalEntryPostedEvent({
+          const event =
+            new JournalEntryPostedEvent({
               journalEntryId: journalEntry.id,
               idempotencyKey,
               description,
-              lines: normalizedLines.map((line) => ({
-                    accountId: line.accountId,
-                    amount: line.amountInMinorUnits,
-                    direction: line.direction,
-                    currency: line.currency,
-              })),
-              metadata: { ...metadata, requestedBy },
-        });
+              lines: eventLines,
+              metadata: {
+                ...metadata,
+                requestedBy,
+              },
+            });
 
-        await this.outboxRepository.add(
-          event,
-          { session }
-        );
+          await this.outboxRepository.add(
+            event,
+            { session }
+          );
 
-        this.logger?.info({
-          event: "JOURNAL_ENTRY_POSTED",
-          journalEntryId: journalEntry.id,
-          idempotencyKey,
-          currency: journalEntry.currency,
-        });
-
-        this.metrics?.increment(
-          "ledger.journal.posted",
-          1,
-          {
+          this.logger?.info({
+            event: "JOURNAL_ENTRY_POSTED",
+            journalEntryId: journalEntry.id,
+            idempotencyKey,
             currency: journalEntry.currency,
-          }
-        );
+          });
 
-        return {
-          ...journalEntry,
-          isDuplicate: false,
-        };
-      });
+          this.metrics?.increment(
+            "ledger.journal.posted",
+            1,
+            {
+              currency: journalEntry.currency,
+            }
+          );
+
+          return {
+            ...journalEntry,
+            isDuplicate: false,
+          };
+        }
+      );
 
     } catch (error) {
+
       if (
         error.code === "23505" ||
         error.name === "UniqueConstraintError"
       ) {
+
         const duplicate =
           await this.journalEntryRepository.findByIdempotencyKey(
             idempotencyKey
@@ -158,11 +192,15 @@ export class PostJournalEntryUseCase {
     }
   }
 
+  //---------------------------------------------------------
+  // Input Validation
+  //---------------------------------------------------------
 
   validateInput({
     idempotencyKey,
     lines,
   }) {
+
     if (
       !idempotencyKey ||
       typeof idempotencyKey !== "string"
@@ -182,8 +220,12 @@ export class PostJournalEntryUseCase {
     }
   }
 
+  //---------------------------------------------------------
+  // Line Normalization
+  //---------------------------------------------------------
 
   normalizeLines(lines) {
+
     const currency =
       lines[0].currency
         ?.trim()
@@ -197,6 +239,7 @@ export class PostJournalEntryUseCase {
 
     return lines.map(
       (line, index) => {
+
         if (!line.accountId) {
           throw new ValidationError(
             `Missing accountId on line ${index}.`
@@ -206,10 +249,13 @@ export class PostJournalEntryUseCase {
         let amount;
 
         try {
+
           amount = BigInt(
             line.amountInMinorUnits
           );
+
         } catch {
+
           throw new ValidationError(
             `Invalid amount on line ${index}.`
           );
@@ -251,12 +297,17 @@ export class PostJournalEntryUseCase {
     );
   }
 
+  //---------------------------------------------------------
+  // Double-Entry Validation
+  //---------------------------------------------------------
 
   validateBalancedEntry(lines) {
+
     let debit = 0n;
     let credit = 0n;
 
     for (const line of lines) {
+
       const amount = BigInt(
         line.amountInMinorUnits
       );
@@ -275,12 +326,16 @@ export class PostJournalEntryUseCase {
     }
   }
 
+  //---------------------------------------------------------
+  // Account Validation
+  //---------------------------------------------------------
 
   validateAccounts(
     accounts,
     expectedIds,
     lines
   ) {
+
     if (
       accounts.length !== expectedIds.length
     ) {
@@ -299,10 +354,9 @@ export class PostJournalEntryUseCase {
     );
 
     for (const line of lines) {
+
       const account =
-        accountMap.get(
-          line.accountId
-        );
+        accountMap.get(line.accountId);
 
       if (
         account.status &&

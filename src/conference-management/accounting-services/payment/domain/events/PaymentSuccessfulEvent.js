@@ -1,6 +1,6 @@
 // src/conference-management/accounting-services/payment/domain/events/PaymentSuccessfulEvent.js
 
-import { DomainEvent } from "../../../../../Shared/domain/DomainEvent.js";
+import { DomainEvent } from "../../../../../shared/domain/DomainEvent.js";
 
 export class PaymentSuccessfulEvent extends DomainEvent {
   /**

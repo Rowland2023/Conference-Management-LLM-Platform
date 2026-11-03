@@ -2,10 +2,10 @@ import { Router }
     from "express";
 
 import { validate }
-    from "../../../../../Shared/Infrastructure/middleware/validate.js";
+    from "../../../../../shared/infrastructure/middleware/validate.js";
 
 import { serialize }
-    from "../../../Shared/presentation/middleware/serialize.js";
+    from "../../../shared/presentation/middleware/serialize.js";
 
 import {
     CreateSettlementSerializer,

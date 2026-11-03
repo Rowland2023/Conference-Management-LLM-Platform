@@ -1,8 +1,8 @@
 import { CommandUseCase }
-    from "../../Shared/application/use-case/CommandUseCase.js";
+    from "../../shared/application/use-case/CommandUseCase.js";
 
 import { CommandResult }
-    from "../../Shared/application/dto/CommandResult.js";
+    from "../../shared/application/dto/CommandResult.js";
 
 import { TaxResponseDTO }
     from "../dto/TaxResponseDTO.js";

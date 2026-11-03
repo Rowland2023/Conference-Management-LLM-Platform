@@ -1,74 +1,108 @@
-// src/modules/event-schedule/application/use-cases/RescheduleEventUseCase.js
-import { ValidationError, NotFoundError, ConflictError } from "../../../../Shared/application/errors/ApplicationErrors.js";
+import {
+    ValidationError,
+    NotFoundError,
+    ConflictError,
+} from "../../../../Shared/application/errors/ApplicationErrors.js";
 
 export class RescheduleEventUseCase {
-  constructor({
-    eventRepository,
-    outboxRepository,
-    unitOfWork
-  }) {
-    this.eventRepository = eventRepository;
-    this.outboxRepository = outboxRepository;
-    this.unitOfWork = unitOfWork;
-  }
+    constructor({
+        eventRepository,
+        outboxRepository,
+        uow,
+        logger,
+    }) {
+        if (!eventRepository || !outboxRepository || !uow) {
+            throw new TypeError(
+                "RescheduleEventUseCase requires eventRepository, outboxRepository, and uow."
+            );
+        }
 
-  async execute({
-    eventId,
-    roomId,
-    newStartTime,
-    newEndTime
-  }) {
-    return this.unitOfWork.transaction(async (tx) => {
-      // Load aggregate
-      const event = await this.eventRepository.findById(eventId, tx);
+        this.eventRepository = eventRepository;
+        this.outboxRepository = outboxRepository;
+        this.uow = uow;
+        this.logger = logger;
+    }
 
-      if (!event) {
-        throw new NotFoundError('Event not found.');
-      }
+    async execute({
+        eventId,
+        startTime,
+        endTime,
+        rescheduledBy,
+        reason = "user_request",
+        correlationId = null,
+        causationId = null,
+    } = {}) {
+        if (
+            !eventId ||
+            !startTime ||
+            !endTime ||
+            !rescheduledBy
+        ) {
+            throw new ValidationError(
+                "Event ID, new start time, new end time, and rescheduling actor are required."
+            );
+        }
 
-      // Validate scheduling conflict
-      const hasConflict =
-        await this.eventRepository.existsOverlapping(
-          roomId,
-          newStartTime,
-          newEndTime,
-          eventId,
-          tx
-        );
+        const result = await this.uow.runInTransaction(async (trx) => {
+            const event = await this.eventRepository.findByIdForUpdate(
+                eventId,
+                trx
+            );
 
-      if (hasConflict) {
-        throw new ConflictError(
-          'Scheduling conflict detected for the selected room.'
-        );
-      }
+            if (!event) {
+                throw new NotFoundError("Event not found.");
+            }
 
-      // Execute domain behavior
-      event.reschedule({
-        roomId,
-        startTime: newStartTime,
-        endTime: newEndTime
-      });
+            // Serialize scheduling operations for this room.
+            await this.eventRepository.lockRoomForScheduling(
+                event.roomID,
+                trx
+            );
 
-      // Persist aggregate
-      await this.eventRepository.save(event, tx);
+            const hasConflict =
+                await this.eventRepository.existsOverlappingEvent(
+                    event.roomID,
+                    startTime,
+                    endTime,
+                    eventId,
+                    trx
+                );
 
-      // Publish through Transactional Outbox
-      await this.outboxRepository.save(
-        {
-          aggregateId: event.id,
-          aggregateType: 'Event',
-          eventType: 'EventRescheduled',
-          payload: {
-            eventId: event.id,
-            roomId: event.roomId,
-            startTime: event.startTime,
-            endTime: event.endTime
-          }
-        },
-        tx
-      );
+            if (hasConflict) {
+                throw new ConflictError(
+                    "Scheduling conflict detected for the selected room."
+                );
+            }
 
-      return event;
-    });
-  }
+            event.reschedule(
+                { startTime, endTime },
+                {
+                    rescheduledBy,
+                    reason,
+                    correlationId,
+                    causationId,
+                }
+            );
+
+            await this.eventRepository.save(event, trx);
+
+            const domainEvents = event.pullEvents();
+
+            await this.outboxRepository.save(domainEvents, trx);
+
+            return {
+                eventId: event.id,
+                startTime: event.startTime,
+                endTime: event.endTime,
+                status: event.status,
+                version: event.version,
+            };
+        });
+
+        this.logger?.info("EVENT_RESCHEDULED", {
+            eventId: result.eventId,
+        });
+
+        return result;
+    }
 }

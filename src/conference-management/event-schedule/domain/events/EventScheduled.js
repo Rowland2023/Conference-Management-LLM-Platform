@@ -1,4 +1,3 @@
-
 import { DomainEvent } from "../../../../Shared/domain/DomainEvent.js";
 import { DomainInvariantError } from "../../../../Shared/domain/error/DomainErrors.js";
 
@@ -13,60 +12,26 @@ export class EventScheduled extends DomainEvent {
     roomId,
     startTime,
     endTime,
-    occurredAt,
+    occurredAt = new Date(),
     correlationId = null,
     causationId = null,
     eventInstanceId,
   }) {
     if (typeof eventId !== "string" || !eventId.trim()) {
-      throw new DomainInvariantError(
-        "EventScheduled: eventId is required.",
-      );
+      throw new DomainInvariantError("EventScheduled: eventId is required.");
     }
-
     if (typeof title !== "string" || !title.trim()) {
-      throw new DomainInvariantError(
-        "EventScheduled: title is required.",
-      );
+      throw new DomainInvariantError("EventScheduled: title is required.");
     }
-
     if (typeof roomId !== "string" || !roomId.trim()) {
+      throw new DomainInvariantError("EventScheduled: roomId is required.");
+    }
+    if (typeof startTime !== "string" || !ISO_UTC_REGEX.test(startTime)) {
       throw new DomainInvariantError(
-        "EventScheduled: roomId is required.",
+        "EventScheduled: startTime must be ISO-8601 UTC.",
       );
     }
-
-    if (!startTime) {
-      throw new DomainInvariantError(
-        "EventScheduled: startTime is required.",
-      );
-    }
-
-    if (!endTime) {
-      throw new DomainInvariantError(
-        "EventScheduled: endTime is required.",
-      );
-    }
-
-    if (occurredAt == null) {
-      throw new DomainInvariantError(
-        "EventScheduled: occurredAt is required.",
-      );
-    }
-
-    if (
-      typeof startTime !== "string" ||
-      !ISO_UTC_REGEX.test(startTime)
-    ) {
-      throw new DomainInvariantError(
-        "EventScheduled: startTime must be ISO-8601 UTC, e.g. 2026-08-01T09:00:00Z.",
-      );
-    }
-
-    if (
-      typeof endTime !== "string" ||
-      !ISO_UTC_REGEX.test(endTime)
-    ) {
+    if (typeof endTime !== "string" || !ISO_UTC_REGEX.test(endTime)) {
       throw new DomainInvariantError(
         "EventScheduled: endTime must be ISO-8601 UTC.",
       );
@@ -75,31 +40,15 @@ export class EventScheduled extends DomainEvent {
     const parsedStart = new Date(startTime);
     const parsedEnd = new Date(endTime);
     const parsedOccurred =
-      occurredAt instanceof Date
-        ? new Date(occurredAt.getTime())
-        : new Date(occurredAt);
+      occurredAt instanceof Date ? occurredAt : new Date(occurredAt);
 
     if (
       Number.isNaN(parsedStart.getTime()) ||
-      parsedStart.toISOString() !== startTime
-    ) {
-      throw new DomainInvariantError(
-        "EventScheduled: invalid startTime.",
-      );
-    }
-
-    if (
       Number.isNaN(parsedEnd.getTime()) ||
-      parsedEnd.toISOString() !== endTime
+      Number.isNaN(parsedOccurred.getTime())
     ) {
       throw new DomainInvariantError(
-        "EventScheduled: invalid endTime.",
-      );
-    }
-
-    if (Number.isNaN(parsedOccurred.getTime())) {
-      throw new DomainInvariantError(
-        "EventScheduled: invalid occurredAt.",
+        "EventScheduled: One or more timestamps are invalid.",
       );
     }
 
@@ -109,11 +58,9 @@ export class EventScheduled extends DomainEvent {
       );
     }
 
-    const duration = parsedEnd.getTime() - parsedStart.getTime();
-
-    if (duration > MAX_EVENT_DURATION_MS) {
+    if (parsedEnd - parsedStart > MAX_EVENT_DURATION_MS) {
       throw new DomainInvariantError(
-        `EventScheduled: duration exceeds max ${MAX_EVENT_DURATION_MS}ms.`,
+        `EventScheduled: duration exceeds maximum of ${MAX_EVENT_DURATION_MS}ms.`,
       );
     }
 
@@ -121,10 +68,10 @@ export class EventScheduled extends DomainEvent {
       eventName: "event.scheduled",
       eventVersion: 1,
       aggregateId: eventId.trim(),
+      eventId: eventInstanceId,
       occurredAt: parsedOccurred,
       correlationId,
       causationId,
-      ...(eventInstanceId ? { eventId: eventInstanceId } : {}),
     });
 
     this.payload = Object.freeze({
@@ -139,37 +86,26 @@ export class EventScheduled extends DomainEvent {
   }
 
   static from(persisted) {
-    if (
-      !persisted?.payload ||
-      typeof persisted.payload !== "object" ||
-      Array.isArray(persisted.payload)
-    ) {
+    if (!persisted || !persisted.payload || !persisted.metadata) {
       throw new DomainInvariantError(
-        "EventScheduled: Cannot rehydrate from invalid data.",
+        "EventScheduled: Cannot rehydrate from incomplete data.",
       );
     }
 
-    const metadata = persisted.metadata ?? {};
-    const payload = persisted.payload;
-    const aggregateId =
-      metadata.aggregateId ??
-      persisted.aggregateId ??
-      payload.eventId;
+    const { metadata, payload } = persisted;
 
     if (
-      typeof payload.eventId !== "string" ||
-      !payload.eventId.trim() ||
-      typeof aggregateId !== "string" ||
-      aggregateId.trim() !== payload.eventId.trim()
+      !metadata.aggregateId ||
+      metadata.aggregateId !== payload.eventId
     ) {
       throw new DomainInvariantError(
         "EventScheduled: aggregateId mismatch during rehydration.",
       );
     }
 
-    if (metadata.occurredAt == null) {
+    if (!metadata.occurredAt) {
       throw new DomainInvariantError(
-        "EventScheduled: occurredAt is required during rehydration.",
+        "EventScheduled: Historical occurredAt is required.",
       );
     }
 
@@ -180,8 +116,8 @@ export class EventScheduled extends DomainEvent {
       startTime: payload.startTime,
       endTime: payload.endTime,
       occurredAt: metadata.occurredAt,
-      correlationId: metadata.correlationId ?? null,
-      causationId: metadata.causationId ?? null,
+      correlationId: metadata.correlationId,
+      causationId: metadata.causationId,
       eventInstanceId: metadata.eventId,
     });
   }

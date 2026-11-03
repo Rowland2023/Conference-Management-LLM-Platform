@@ -1,4 +1,4 @@
-// src/Shared/domain/error/DomainErrors.js
+// src/shared/domain/error/DomainErrors.js
 
 export class DomainError extends Error {
   constructor(message, { code = "DOMAIN_ERROR", statusCode = 500, cause } = {}) {

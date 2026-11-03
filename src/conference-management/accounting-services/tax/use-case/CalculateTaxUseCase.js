@@ -1,6 +1,6 @@
 
-import { CommandUseCase } from "../../Shared/application/use-case/CommandUseCase.js";
-import { CommandResult } from "../../Shared/application/dto/CommandResult.js";
+import { CommandUseCase } from "../../shared/application/use-case/CommandUseCase.js";
+import { CommandResult } from "../../shared/application/dto/CommandResult.js";
 import { TaxAssessment } from "../domain/entities/TaxAssessment.js";
 import { TaxResponseDTO } from "../dto/TaxResponseDTO.js";
 

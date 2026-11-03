@@ -1,6 +1,6 @@
-import { DomainEvent } from "../../../../Shared/domain/DomainEvent.js";
+import { DomainEvent } from "../../../../shared/domain/DomainEvent.js";
 import { ValidationError }
-from "../../../../Shared/application/errors/ApplicationErrors.js";
+from "../../../../shared/application/errors/ApplicationErrors.js";
 
 export class ReminderScheduled extends DomainEvent {
   constructor({ 

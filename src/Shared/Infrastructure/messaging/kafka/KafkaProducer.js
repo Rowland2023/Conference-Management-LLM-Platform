@@ -1,4 +1,4 @@
-// src/Shared/infrastructure/messaging/kafka/KafkaProducer.js
+// src/shared/infrastructure/messaging/kafka/KafkaProducer.js
 
 import {
     CompressionTypes,

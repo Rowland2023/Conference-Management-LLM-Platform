@@ -1,5 +1,5 @@
 import { QueryUseCase }
-    from "../../../Shared/application/use-case/QueryUseCase.js";
+    from "../../../shared/application/use-case/QueryUseCase.js";
 
 import { SettlementResponseDTO }
     from "../dto/SettlementResponseDTO.js";

@@ -1,5 +1,5 @@
 /**
- * @file src/Shared/presentation/middleware/auth.middleware.js
+ * @file src/shared/presentation/middleware/auth.middleware.js
  * 
  * JWT Authentication Middleware for User & Client-Facing API Endpoints.
  */

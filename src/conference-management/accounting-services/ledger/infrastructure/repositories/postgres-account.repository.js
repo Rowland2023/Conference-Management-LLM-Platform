@@ -1,130 +1,222 @@
+/**
+ * @file postgres-account.repository.js
+ *
+ * PostgreSQL implementation of AccountRepository.
+ *
+ * Responsibilities:
+ * - Persist account aggregates
+ * - Tenant isolation
+ * - Row-level locking
+ * - Deterministic lock ordering
+ */
 
-import db from "../../../../../cross-cutting/database/knex.js";
-import AccountMapper from "../mappers/account.mapper.js";
+import db
+  from "../../../../../cross-cutting/database/knex.js";
+
+import AccountMapper
+  from "../mappers/account.mapper.js";
 
 export class PostgresAccountRepository {
-  constructor({ uow, knex } = {}) {
-    this.uow = uow;
-    this.db = knex ?? db;
+
+  async save(
+    accountAggregate,
+    options = {}
+  ) {
+
+    const client =
+      this.#getClient(options);
+
+    const row =
+      AccountMapper.toPersistence(
+        accountAggregate
+      );
+
+    if (!row.tenant_id) {
+      throw new Error(
+        "tenant_id is required."
+      );
+    }
+
+    await client("accounts")
+      .insert(row)
+      .onConflict([
+        "id",
+        "tenant_id",
+      ])
+      .merge({
+
+        name:
+          row.name,
+
+        available_balance:
+          row.available_balance,
+
+        pending_balance:
+          row.pending_balance,
+
+        status:
+          row.status,
+
+        metadata:
+          row.metadata,
+
+        updated_at:
+          row.updated_at,
+
+      });
+
   }
 
-  async save(accountAggregate, options = {}) {
-    const client = this.#getClient(options);
-    const row = AccountMapper.toPersistence(accountAggregate);
+  async findById(
+    tenantId,
+    accountId,
+    options = {}
+  ) {
 
-    const existing = await client("ledger_accounts")
-      .where({
-        id: row.id,
-        tenant_id: row.tenant_id,
-      })
-      .first();
+    this.#requireTenant(
+      tenantId
+    );
 
-    if (existing) {
-      await client("ledger_accounts")
+    const client =
+      this.#getClient(options);
+
+    const row =
+      await client("accounts")
         .where({
-          id: row.id,
-          tenant_id: row.tenant_id,
+
+          tenant_id:
+            tenantId,
+
+          id:
+            accountId,
+
         })
-        .update({
-          name: row.name,
-          currency: row.currency,
-          is_active: row.is_active,
-          updated_at: row.updated_at,
-        });
-    } else {
-      await client("ledger_accounts").insert(row);
-    }
+        .first();
 
-    return AccountMapper.toDomain({
-      ...row,
-      ...(existing ?? {}),
-      name: row.name,
-      currency: row.currency,
-      is_active: row.is_active,
-      updated_at: row.updated_at,
-    });
+    return AccountMapper.toDomain(
+      row
+    );
+
   }
 
-  async findById(tenantId, accountId, options = {}) {
-    this.#requireTenant(tenantId);
+  async findByIdForUpdate(
+    tenantId,
+    accountId,
+    options = {}
+  ) {
 
-    const row = await this.#getClient(options)("ledger_accounts")
-      .where({
-        tenant_id: tenantId,
-        id: accountId,
-      })
-      .first();
+    this.#requireTenant(
+      tenantId
+    );
 
-    return AccountMapper.toDomain(row);
+    const client =
+      this.#getTransaction(options);
+
+    const row =
+      await client("accounts")
+        .where({
+
+          tenant_id:
+            tenantId,
+
+          id:
+            accountId,
+
+        })
+        .forUpdate()
+        .first();
+
+    return AccountMapper.toDomain(
+      row
+    );
+
   }
 
-  async findByIdForUpdate(tenantId, accountId, options = {}) {
-    this.#requireTenant(tenantId);
+  async findManyByIdsForUpdate(
+    tenantId,
+    accountIds = [],
+    options = {}
+  ) {
 
-    const row = await this.#getTransaction(options)("ledger_accounts")
-      .where({
-        tenant_id: tenantId,
-        id: accountId,
-      })
-      .forUpdate()
-      .first();
+    this.#requireTenant(
+      tenantId
+    );
 
-    return AccountMapper.toDomain(row);
-  }
-
-  async findByIdsForUpdate(tenantId, accountIds = [], options = {}) {
-    this.#requireTenant(tenantId);
-
-    if (!Array.isArray(accountIds)) {
-      throw new TypeError("accountIds must be an array.");
-    }
-
-    if (accountIds.length === 0) {
+    if (
+      accountIds.length === 0
+    ) {
       return [];
     }
 
-    const ids = [...new Set(accountIds)].sort();
+    const client =
+      this.#getTransaction(options);
 
-    const rows = await this.#getTransaction(options)("ledger_accounts")
-      .where("tenant_id", tenantId)
-      .whereIn("id", ids)
-      .orderBy("id", "asc")
-      .forUpdate();
+    const sortedIds =
+      [...new Set(accountIds)]
+        .sort();
 
-    return rows.map((row) => AccountMapper.toDomain(row));
+    const rows =
+      await client("accounts")
+        .where(
+          "tenant_id",
+          tenantId
+        )
+        .whereIn(
+          "id",
+          sortedIds
+        )
+        .orderBy(
+          "id",
+          "asc"
+        )
+        .forUpdate();
+
+    return rows.map(
+      AccountMapper.toDomain
+    );
+
   }
 
-  async findByAccountNumber(accountNumber, options = {}) {
-    const tenantId = options.tenantId;
-    this.#requireTenant(tenantId);
+  #getClient(
+    options
+  ) {
 
-    const row = await this.#getClient(options)("ledger_accounts")
-      .where({
-        tenant_id: tenantId,
-        code: accountNumber,
-      })
-      .first();
+    return (
+      options.transaction ??
+      options.session ??
+      db
+    );
 
-    return AccountMapper.toDomain(row);
   }
 
-  #getClient(options) {
-    return options.transaction ?? options.session ?? this.db;
-  }
+  #getTransaction(
+    options
+  ) {
 
-  #getTransaction(options) {
-    const transaction = options.transaction ?? options.session;
+    const transaction =
+      options.transaction ??
+      options.session;
 
     if (!transaction) {
-      throw new Error("Transaction is required for row locking.");
+      throw new Error(
+        "Transaction is required for row locking."
+      );
     }
 
     return transaction;
+
   }
 
-  #requireTenant(tenantId) {
+  #requireTenant(
+    tenantId
+  ) {
+
     if (!tenantId) {
-      throw new Error("tenantId is required.");
+      throw new Error(
+        "tenantId is required."
+      );
     }
+
   }
+
 }

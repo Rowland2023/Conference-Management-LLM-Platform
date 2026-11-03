@@ -1,6 +1,6 @@
-import { DomainEvent } from "../../../../Shared/domain/DomainEvent.js";
+import { DomainEvent } from "../../../../shared/domain/DomainEvent.js";
 import { ValidationError }
-from "../../../../Shared/application/errors/ApplicationErrors.js";
+from "../../../../shared/application/errors/ApplicationErrors.js";
 
 const CANCELLATION_REASONS = new Set([
   'user_request', 
