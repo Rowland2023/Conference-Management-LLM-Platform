@@ -1,9 +1,14 @@
-
 /**
  * @file src/conference-management/accounting-services/payment/index.js
  *
  * Payment bounded-context composition root.
- * Wires infrastructure, use cases, services, controllers and routes.
+ *
+ * Responsibilities:
+ * - Validate shared infrastructure.
+ * - Instantiate payment infrastructure and provider gateways.
+ * - Wire payment and webhook use cases.
+ * - Wire application services, controllers and routes.
+ * - Expose the public payment module API.
  */
 
 import { randomUUID } from "node:crypto";
@@ -72,21 +77,8 @@ export function createPaymentModule(shared = {}) {
     }
 
     // --------------------------------------------------
-    // Infrastructure
+    // Shared application dependencies
     // --------------------------------------------------
-
-    const paymentRepository = new PostgresPaymentRepository({
-        db,
-        paymentMapper: new PaymentMapper(),
-    });
-
-    const refundRepository = new PostgresRefundRepository({ db });
-
-    const lockManager = new RedisLockManager({
-        redis,
-        logger,
-        namespace: "payments",
-    });
 
     const idGenerator = {
         generate: randomUUID,
@@ -95,6 +87,31 @@ export function createPaymentModule(shared = {}) {
     const clock = {
         now: () => new Date(),
     };
+
+    // --------------------------------------------------
+    // Persistence infrastructure
+    // --------------------------------------------------
+
+    const paymentMapper = PaymentMapper;
+
+    const paymentRepository = new PostgresPaymentRepository({
+        db,
+        paymentMapper,
+    });
+
+    const refundRepository = new PostgresRefundRepository({
+        db,
+    });
+
+    // --------------------------------------------------
+    // Lock infrastructure
+    // --------------------------------------------------
+
+    const lockManager = new RedisLockManager({
+        redis,
+        logger,
+        namespace: "payments",
+    });
 
     // --------------------------------------------------
     // Provider gateways
@@ -117,19 +134,34 @@ export function createPaymentModule(shared = {}) {
         )
         : null;
 
+    /**
+     * Centralized gateway lookup.
+     *
+     * Both method names are exposed temporarily for compatibility:
+     * - getGateway() is the composition-root interface.
+     * - create() is currently called by payment use cases.
+     *
+     * This does not make the provider gateway APIs interchangeable.
+     */
     const paymentGatewayFactory = {
         getGateway(provider) {
-            switch (provider) {
+            switch (String(provider).toLowerCase()) {
                 case "paystack":
                     if (!paystackGateway) {
-                        throw new Error("Paystack gateway is not configured.");
+                        throw new Error(
+                            "Paystack gateway is not configured.",
+                        );
                     }
+
                     return paystackGateway;
 
                 case "stripe":
                     if (!stripeGateway) {
-                        throw new Error("Stripe gateway is not configured.");
+                        throw new Error(
+                            "Stripe gateway is not configured.",
+                        );
                     }
+
                     return stripeGateway;
 
                 default:
@@ -137,6 +169,10 @@ export function createPaymentModule(shared = {}) {
                         `Unsupported payment provider: ${provider}`,
                     );
             }
+        },
+
+        create(provider) {
+            return this.getGateway(provider);
         },
     };
 
@@ -172,6 +208,9 @@ export function createPaymentModule(shared = {}) {
     const createPaymentUseCase = new CreatePaymentUseCase({
         paymentRepository,
         paymentGatewayFactory,
+        unitOfWork,
+        idGenerator,
+        clock,
         lockManager,
         outboxRepository,
         logger,
@@ -203,29 +242,27 @@ export function createPaymentModule(shared = {}) {
     // Webhook use cases
     // --------------------------------------------------
 
-    const handlePaystackWebhookUseCase =
-        paystackWebhookVerifier
-            ? new HandlePaystackWebhookUseCase({
-                paymentRepository,
-                outboxRepository,
-                unitOfWork,
-                paystackWebhookVerifier,
-                logger,
-                clock,
-            })
-            : null;
+    const handlePaystackWebhookUseCase = paystackWebhookVerifier
+        ? new HandlePaystackWebhookUseCase({
+            paymentRepository,
+            outboxRepository,
+            unitOfWork,
+            paystackWebhookVerifier,
+            logger,
+            clock,
+        })
+        : null;
 
-    const handleStripeWebhookUseCase =
-        stripeWebhookVerifier
-            ? new HandleStripeWebhookUseCase({
-                paymentRepository,
-                outboxRepository,
-                unitOfWork,
-                stripeWebhookVerifier,
-                logger,
-                clock,
-            })
-            : null;
+    const handleStripeWebhookUseCase = stripeWebhookVerifier
+        ? new HandleStripeWebhookUseCase({
+            paymentRepository,
+            outboxRepository,
+            unitOfWork,
+            stripeWebhookVerifier,
+            logger,
+            clock,
+        })
+        : null;
 
     // --------------------------------------------------
     // Application services
@@ -304,6 +341,8 @@ export function createPaymentModule(shared = {}) {
         infrastructure: {
             lockManager,
             unitOfWork,
+            idGenerator,
+            clock,
             paystackWebhookVerifier,
             stripeWebhookVerifier,
         },

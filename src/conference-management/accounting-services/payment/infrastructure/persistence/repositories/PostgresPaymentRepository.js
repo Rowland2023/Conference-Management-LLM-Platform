@@ -1,294 +1,403 @@
+
 // src/conference-management/accounting-services/payment/infrastructure/persistence/repositories/PostgresPaymentRepository.js
 
 import { IPaymentRepository } from "../../../domain/repositories/IPaymentRepository.js";
 import {
-  ConflictError,
-  InternalError,
+    ConflictError,
+    InternalError,
 } from "../../../domain/errors/PaymentErrors.js";
 
 export class PostgresPaymentRepository extends IPaymentRepository {
-  constructor({ db, paymentMapper }) {
-    super();
+    constructor({ db, paymentMapper }) {
+        super();
 
-    if (!db) {
-      throw new InternalError(
-        "PostgresPaymentRepository requires a database client."
-      );
+        if (!db || typeof db.raw !== "function") {
+            throw new InternalError(
+                "PostgresPaymentRepository requires a valid Knex database instance."
+            );
+        }
+
+        if (!paymentMapper || typeof paymentMapper.toDomain !== "function") {
+            throw new InternalError(
+                "PostgresPaymentRepository requires a valid payment mapper."
+            );
+        }
+
+        this.db = db;
+        this.paymentMapper = paymentMapper;
     }
 
-    if (!paymentMapper) {
-      throw new InternalError(
-        "PostgresPaymentRepository requires a payment mapper."
-      );
+    // ============================================================
+    // DATABASE / TRANSACTION RESOLUTION
+    // ============================================================
+
+    _client(options = {}) {
+        const transaction = options?.transaction ?? options;
+
+        if (transaction && typeof transaction.raw === "function") {
+            return transaction;
+        }
+
+        return this.db;
     }
 
-    this.db = db;
-    this.paymentMapper = paymentMapper;
-  }
+    // ============================================================
+    // KNEX QUERY EXECUTION
+    // ============================================================
 
-  // ============================================================
-  // CREATE
-  // ============================================================
+    async _query(sql, values = [], options = {}) {
+        const client = this._client(options);
 
-  async save(payment, options = {}) {
-    const client = options.transaction || this.db;
+        if (!client || typeof client.raw !== "function") {
+            throw new InternalError(
+                "A valid Knex database instance or transaction is required."
+            );
+        }
 
-    const query = `
-      INSERT INTO payments (
-        id,
-        version,
-        tenant_id,
-        context_id,
-        context_type,
-        amount,
-        currency,
-        status,
-        user_id,
-        email,
-        seller_id,
-        gateway,
-        external_reference,
-        checkout_url,
-        gateway_transaction_id,
-        gateway_failure,
-        paid_at,
-        released_at,
-        created_at,
-        updated_at
-      )
-      VALUES (
-        $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15,
-        $16, $17, $18, $19, $20
-      )
-      RETURNING *
-    `;
+        // Convert PostgreSQL positional placeholders ($1, $2, ...)
+        // into Knex positional placeholders (?).
+        //
+        // Bindings must follow the order in which placeholders
+        // appear in the SQL statement, not their original indexes.
 
-    const values = [
-      payment.id,
-      payment.version ?? 0,
-      payment.tenantId,
-      payment.contextId,
-      payment.contextType,
-      payment.amount,
-      payment.currency,
-      payment.status,
-      payment.userId,
-      payment.email,
-      payment.sellerId,
-      payment.gateway,
-      payment.externalReference,
-      payment.checkoutUrl,
-      payment.gatewayTransactionId,
-      payment.gatewayFailure
-        ? JSON.stringify(payment.gatewayFailure)
-        : null,
-      payment.paidAt,
-      payment.releasedAt,
-      payment.createdAt,
-      payment.updatedAt,
-    ];
+        const bindings = [];
 
-    try {
-      const result = await client.query(query, values);
+        const knexSql = sql.replace(/\$(\d+)/g, (_, position) => {
+            const index = Number(position) - 1;
 
-      return this.paymentMapper.toDomain(result.rows[0]);
-    } catch (error) {
-      throw error;
-    }
-  }
+            if (
+                !Number.isInteger(index) ||
+                index < 0 ||
+                index >= values.length
+            ) {
+                throw new InternalError(
+                    `Invalid SQL parameter position: $${position}.`
+                );
+            }
 
-  // ============================================================
-  // FIND BY ID
-  // ============================================================
+            bindings.push(values[index]);
 
-  async findById(paymentId, options = {}) {
-    const client = options.transaction || this.db;
+            return "?";
+        });
 
-    const query = `
-      SELECT *
-      FROM payments
-      WHERE id = $1
-      LIMIT 1
-    `;
-
-    const result = await client.query(query, [paymentId]);
-
-    if (result.rows.length === 0) {
-      return null;
+        return client.raw(knexSql, bindings);
     }
 
-    return this.paymentMapper.toDomain(result.rows[0]);
-  }
+    // ============================================================
+    // CREATE
+    // ============================================================
 
-  // ============================================================
-  // FIND BY ID + PESSIMISTIC LOCK
-  // ============================================================
+    async save(payment, options = {}) {
+        if (!payment?.id) {
+            throw new InternalError(
+                "Cannot save a payment without an ID."
+            );
+        }
 
-  async findByIdForUpdate(paymentId, transaction) {
-    if (!transaction) {
-      throw new InternalError(
-        "Pessimistic row locking requires an active database transaction."
-      );
+        if (!payment.tenantId) {
+            throw new InternalError(
+                "Cannot save a payment without a tenant ID."
+            );
+        }
+
+        if (!payment.idempotencyKey) {
+            throw new InternalError(
+                "Cannot save a payment without an idempotency key."
+            );
+        }
+
+        const query = `
+            INSERT INTO payments (
+                id,
+                version,
+                tenant_id,
+                context_id,
+                context_type,
+                idempotency_key,
+                amount,
+                currency,
+                status,
+                user_id,
+                email,
+                seller_id,
+                gateway,
+                external_reference,
+                checkout_url,
+                gateway_transaction_id,
+                gateway_failure,
+                paid_at,
+                released_at,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                $1, $2, $3, $4, $5,
+                $6, $7, $8, $9, $10,
+                $11, $12, $13, $14, $15,
+                $16, $17, $18, $19, $20,
+                $21
+            )
+            RETURNING *
+        `;
+
+        const values = [
+            payment.id,
+            payment.version ?? 0,
+            payment.tenantId,
+            payment.contextId,
+            payment.contextType,
+            payment.idempotencyKey,
+            payment.amount,
+            payment.currency,
+            payment.status,
+            payment.userId,
+            payment.email,
+            payment.sellerId,
+            payment.gateway,
+            payment.externalReference,
+            payment.checkoutUrl,
+            payment.gatewayTransactionId,
+            payment.gatewayFailure
+                ? JSON.stringify(payment.gatewayFailure)
+                : null,
+            payment.paidAt,
+            payment.releasedAt,
+            payment.createdAt,
+            payment.updatedAt,
+        ];
+
+        const result = await this._query(query, values, options);
+
+        if (!result.rows?.[0]) {
+            throw new InternalError(
+                "Payment insert completed without returning a record."
+            );
+        }
+
+        return this.paymentMapper.toDomain(result.rows[0]);
     }
 
-    const query = `
-      SELECT *
-      FROM payments
-      WHERE id = $1
-      FOR UPDATE
-    `;
+    // ============================================================
+    // FIND BY ID
+    // ============================================================
 
-    const result = await transaction.query(query, [paymentId]);
+    async findById(paymentId, options = {}) {
+        const query = `
+            SELECT *
+            FROM payments
+            WHERE id = $1
+            LIMIT 1
+        `;
 
-    if (result.rows.length === 0) {
-      return null;
+        const result = await this._query(
+            query,
+            [paymentId],
+            options
+        );
+
+        if (!result.rows?.length) {
+            return null;
+        }
+
+        return this.paymentMapper.toDomain(result.rows[0]);
     }
 
-    return this.paymentMapper.toDomain(result.rows[0]);
-  }
+    // ============================================================
+    // FIND BY ID + PESSIMISTIC LOCK
+    // ============================================================
 
-  // ============================================================
-  // FIND BY IDEMPOTENCY KEY
-  // ============================================================
-  //
-  // IMPORTANT:
-  // Your current Payment aggregate does NOT contain an
-  // idempotencyKey property.
-  //
-  // Therefore this method cannot correctly work yet unless
-  // idempotency_key exists in the domain model.
-  //
-  // We leave this method here because CreatePaymentUseCase
-  // currently requires it.
-  //
-  // See explanation below.
-  // ============================================================
+    async findByIdForUpdate(paymentId, transaction) {
+        if (!transaction || typeof transaction.raw !== "function") {
+            throw new InternalError(
+                "Pessimistic row locking requires an active Knex transaction."
+            );
+        }
 
-  async findByIdempotencyKey(idempotencyKey, options = {}) {
-    const client = options.transaction || this.db;
+        const query = `
+            SELECT *
+            FROM payments
+            WHERE id = $1
+            FOR UPDATE
+        `;
 
-    const query = `
-      SELECT *
-      FROM payments
-      WHERE idempotency_key = $1
-      LIMIT 1
-    `;
+        const result = await this._query(
+            query,
+            [paymentId],
+            transaction
+        );
 
-    const result = await client.query(query, [idempotencyKey]);
+        if (!result.rows?.length) {
+            return null;
+        }
 
-    if (result.rows.length === 0) {
-      return null;
+        return this.paymentMapper.toDomain(result.rows[0]);
     }
 
-    return this.paymentMapper.toDomain(result.rows[0]);
-  }
+    // ============================================================
+    // FIND BY TENANT-SCOPED IDEMPOTENCY KEY
+    // ============================================================
 
-  // ============================================================
-  // FIND BY GATEWAY TRANSACTION ID
-  // ============================================================
+    async findByIdempotencyKey(
+        tenantId,
+        idempotencyKey,
+        options = {}
+    ) {
+        if (!tenantId) {
+            throw new InternalError(
+                "A tenant ID is required for idempotency lookup."
+            );
+        }
 
-  async findByGatewayTransactionId(
-    gatewayTransactionId,
-    options = {}
-  ) {
-    const client = options.transaction || this.db;
+        if (!idempotencyKey) {
+            throw new InternalError(
+                "An idempotency key is required."
+            );
+        }
 
-    const query = `
-      SELECT *
-      FROM payments
-      WHERE gateway_transaction_id = $1
-      LIMIT 1
-    `;
+        const query = `
+            SELECT *
+            FROM payments
+            WHERE tenant_id = $1
+              AND idempotency_key = $2
+            LIMIT 1
+        `;
 
-    const result = await client.query(
-      query,
-      [gatewayTransactionId]
-    );
+        const result = await this._query(
+            query,
+            [tenantId, idempotencyKey],
+            options
+        );
 
-    if (result.rows.length === 0) {
-      return null;
+        if (!result.rows?.length) {
+            return null;
+        }
+
+        return this.paymentMapper.toDomain(result.rows[0]);
     }
 
-    return this.paymentMapper.toDomain(result.rows[0]);
-  }
+    // ============================================================
+    // FIND BY GATEWAY TRANSACTION ID
+    // ============================================================
 
-  // ============================================================
-  // UPDATE
-  // ============================================================
+    async findByGatewayTransactionId(
+        gatewayTransactionId,
+        options = {}
+    ) {
+        if (!gatewayTransactionId) {
+            return null;
+        }
 
-  async update(payment, options = {}) {
-    const client = options.transaction || this.db;
+        const query = `
+            SELECT *
+            FROM payments
+            WHERE gateway_transaction_id = $1
+            LIMIT 1
+        `;
 
-    const query = `
-      UPDATE payments
-      SET
-        version = $2,
-        status = $3,
-        seller_id = $4,
-        gateway_transaction_id = $5,
-        external_reference = $6,
-        checkout_url = $7,
-        gateway_failure = $8,
-        paid_at = $9,
-        released_at = $10,
-        updated_at = $11
-      WHERE id = $1
-        AND version = $12
-      RETURNING *
-    `;
+        const result = await this._query(
+            query,
+            [gatewayTransactionId],
+            options
+        );
 
-    const currentVersion = payment.version ?? 0;
+        if (!result.rows?.length) {
+            return null;
+        }
 
-    const values = [
-      payment.id,
-      currentVersion + 1,
-      payment.status,
-      payment.sellerId,
-      payment.gatewayTransactionId,
-      payment.externalReference,
-      payment.checkoutUrl,
-      payment.gatewayFailure
-        ? JSON.stringify(payment.gatewayFailure)
-        : null,
-      payment.paidAt,
-      payment.releasedAt,
-      payment.updatedAt,
-      currentVersion,
-    ];
-
-    const result = await client.query(query, values);
-
-    if (result.rowCount === 0) {
-      throw new ConflictError(
-        `Optimistic concurrency failure: Payment aggregate ${payment.id} was modified by another transaction.`
-      );
+        return this.paymentMapper.toDomain(result.rows[0]);
     }
 
-    return this.paymentMapper.toDomain(result.rows[0]);
-  }
+    // ============================================================
+    // UPDATE
+    // ============================================================
 
-  // ============================================================
-  // EXISTS
-  // ============================================================
+    async update(payment, options = {}) {
+        if (!payment?.id) {
+            throw new InternalError(
+                "Cannot update a payment without an ID."
+            );
+        }
 
-  async exists(paymentId, options = {}) {
-    const client = options.transaction || this.db;
+        const currentVersion = payment.version ?? 0;
 
-    const query = `
-      SELECT EXISTS(
-        SELECT 1
-        FROM payments
-        WHERE id = $1
-      ) AS exists
-    `;
+        if (
+            !Number.isSafeInteger(currentVersion) ||
+            currentVersion < 0
+        ) {
+            throw new InternalError(
+                "Payment version must be a non-negative safe integer."
+            );
+        }
 
-    const result = await client.query(
-      query,
-      [paymentId]
-    );
+        const query = `
+            UPDATE payments
+            SET
+                version = $2,
+                status = $3,
+                seller_id = $4,
+                gateway_transaction_id = $5,
+                external_reference = $6,
+                checkout_url = $7,
+                gateway_failure = $8,
+                paid_at = $9,
+                released_at = $10,
+                updated_at = $11
+            WHERE id = $1
+              AND version = $12
+            RETURNING *
+        `;
 
-    return result.rows[0].exists;
-  }
+        const values = [
+            payment.id,
+            currentVersion + 1,
+            payment.status,
+            payment.sellerId,
+            payment.gatewayTransactionId,
+            payment.externalReference,
+            payment.checkoutUrl,
+            payment.gatewayFailure
+                ? JSON.stringify(payment.gatewayFailure)
+                : null,
+            payment.paidAt,
+            payment.releasedAt,
+            payment.updatedAt,
+            currentVersion,
+        ];
+
+        const result = await this._query(
+            query,
+            values,
+            options
+        );
+
+        if (!result.rows?.[0]) {
+            throw new ConflictError(
+                `Optimistic concurrency failure: Payment aggregate ${payment.id} was modified by another transaction.`
+            );
+        }
+
+        return this.paymentMapper.toDomain(result.rows[0]);
+    }
+
+    // ============================================================
+    // EXISTS
+    // ============================================================
+
+    async exists(paymentId, options = {}) {
+        const query = `
+            SELECT EXISTS (
+                SELECT 1
+                FROM payments
+                WHERE id = $1
+            ) AS exists
+        `;
+
+        const result = await this._query(
+            query,
+            [paymentId],
+            options
+        );
+
+        return result.rows?.[0]?.exists === true;
+    }
 }

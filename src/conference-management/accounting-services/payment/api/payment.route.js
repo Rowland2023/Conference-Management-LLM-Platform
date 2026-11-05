@@ -77,7 +77,7 @@ export default function createPaymentRouter({
             createPaymentSchema
         ),
 
-        idempotency(),
+        idempotency({ header: "x-idempotency-key" }),
 
         paymentController.createPayment
     );
@@ -147,7 +147,7 @@ export default function createPaymentRouter({
             refundPaymentSchema
         ),
 
-        idempotency(),
+        idempotency({ header: "x-idempotency-key" }),
 
         paymentController.refundPayment
     );

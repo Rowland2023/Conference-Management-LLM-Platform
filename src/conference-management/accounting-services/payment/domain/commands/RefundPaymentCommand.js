@@ -4,9 +4,10 @@ export class RefundPaymentCommand {
   /**
    * @param {Object} params
    * @param {string} params.paymentId
-   * @param {number} params.amountMinor
+   * @param {number} [params.amountMinor]
    * @param {string} params.reason
    * @param {string} params.tenantId
+   * @param {string} params.idempotencyKey
    * @param {string} [params.correlationId]
    * @param {Object} [params.actor]
    */
@@ -15,6 +16,7 @@ export class RefundPaymentCommand {
     amountMinor,
     reason,
     tenantId,
+    idempotencyKey,
     correlationId = null,
     actor = null,
   }) {
@@ -27,26 +29,41 @@ export class RefundPaymentCommand {
     }
 
     if (
-      !Number.isInteger(amountMinor) ||
-      amountMinor <= 0
+      amountMinor !== undefined &&
+      (!Number.isSafeInteger(amountMinor) || amountMinor < 100)
     ) {
       throw new Error(
-        "RefundPaymentCommand: amountMinor must be a positive integer."
+        "RefundPaymentCommand: amountMinor must be an integer of at least 100 minor units when provided."
       );
     }
 
-    if (!reason || reason.trim().length === 0) {
+    if (typeof reason !== "string" || reason.trim().length === 0) {
       throw new Error("RefundPaymentCommand: reason is required.");
+    }
+
+    const normalizedKey =
+      typeof idempotencyKey === "string"
+        ? idempotencyKey.trim()
+        : "";
+
+    if (
+      normalizedKey.length < 16 ||
+      normalizedKey.length > 255 ||
+      !/^[A-Za-z0-9_-]+$/.test(normalizedKey)
+    ) {
+      throw new Error(
+        "RefundPaymentCommand: idempotencyKey must contain 16-255 alphanumeric, hyphen, or underscore characters."
+      );
     }
 
     this.paymentId = paymentId;
     this.amountMinor = amountMinor;
     this.reason = reason.trim();
     this.tenantId = tenantId;
+    this.idempotencyKey = normalizedKey;
     this.correlationId = correlationId;
     this.actor = actor;
 
-    // Make the command immutable
     Object.freeze(this);
   }
 }

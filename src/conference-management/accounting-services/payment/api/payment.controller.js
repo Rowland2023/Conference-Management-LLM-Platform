@@ -38,9 +38,7 @@ export class PaymentController {
 
                     correlationId: req.correlationId,
 
-                    idempotencyKey:
-                        req.headers["idempotency-key"] ||
-                        req.body?.idempotencyKey,
+                    idempotencyKey: req.idempotencyKey,
 
                 });
 
@@ -166,15 +164,13 @@ export class PaymentController {
 
                     actor: req.actor,
 
+                    amountMinor: req.body.amount,
+
                     reason: req.body?.reason,
 
-                    idempotencyKey:
-                        req.headers["idempotency-key"] ||
-                        req.body?.idempotencyKey,
+                    idempotencyKey: req.idempotencyKey,
 
-
-                    correlationId:
-                        req.correlationId,
+                    correlationId: req.correlationId,
 
                 });
 
@@ -184,7 +180,13 @@ export class PaymentController {
 
                 success: true,
 
-                data: PaymentSerializer.serialize(refund),
+                data: {
+                      paymentId: refund.paymentId,
+                      refundId: refund.refundId,
+                      gatewayRefundId: refund.gatewayRefundId,
+                      status: refund.status,
+                      amountRefunded: refund.amountRefunded,
+                      },
 
             });
 
