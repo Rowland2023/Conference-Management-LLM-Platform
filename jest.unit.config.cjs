@@ -19,6 +19,7 @@ module.exports = {
     '[STRIPPED 94 bytes].js',
     '[STRIPPED 88 bytes].js',
     '[STRIPPED 72 bytes].js',
+      'src/conference-management/accounting-services/payment/application/use-cases/create-payment.usecase.js',
     'src/conference-management/event-schedule/domain/entities/event.js',
     '[STRIPPED 71 bytes].service.js',
     '[STRIPPED 67 bytes].js',
@@ -37,7 +38,7 @@ module.exports = {
     'Entity'
   ],
   coverageThreshold: {
-    global: { statements: 70, branches: 60, functions: 70, lines: 70 }
+    global: { statements: 70, branches: 70, functions: 70, lines: 70 }
   },
   testMatch: ['**/test/unit/**/*.test.js'],
   verbose: false

@@ -13,7 +13,6 @@ import { PaymentReleasedEvent } from "../events/PaymentReleasedEvent.js";
 import { PaymentRefundedEvent } from "../events/PaymentRefundedEvent.js";
 
 export class Payment extends AggregateRoot {
-
     constructor(props) {
         super(props.id, props.version);
 
@@ -180,14 +179,19 @@ export class Payment extends AggregateRoot {
         payment.addDomainEvent(
             new PaymentCreatedEvent({
                 paymentId: payment.id,
-                tenantId: payment.tenantId,
+                bookingId: payment.contextId,
                 contextId: payment.contextId,
                 contextType: payment.contextType,
+                tenantId: payment.tenantId,
+                userId: payment.userId,
                 amount: payment.amount,
                 currency: payment.currency,
+                gateway: payment.gateway,
+                email: payment.email,
+                idempotencyKey: payment.idempotencyKey,
                 correlationId: cmd.correlationId,
                 causationId: cmd.causationId,
-                occurredAt: cmd.createdAt,
+                createdAt: payment.createdAt,
             })
         );
 
@@ -251,13 +255,7 @@ export class Payment extends AggregateRoot {
             occurredAt: new Date(),
         };
 
-        /*
-         * Keep the payment PENDING.
-         *
-         * Gateway initialization failures may be transient.
-         * Keeping the payment PENDING allows a later retry using
-         * the same payment reference and idempotency key.
-         */
+        // Keep PENDING to allow a retry with the same payment reference.
         this._updatedAt = this._gatewayFailure.occurredAt;
 
         this.incrementVersion();
@@ -403,13 +401,13 @@ export class Payment extends AggregateRoot {
     }) {
         if (!this.canBeRefunded()) {
             throw new UnprocessableEntityError(
-                `Cannot refund payment while status is '${this.status}'.`,
+                `Cannot refund payment while status is '${this.status}'.`
             );
         }
 
         if (!Number.isSafeInteger(amount) || amount <= 0) {
             throw new ValidationError(
-                "Refund amount must be a positive integer in minor units.",
+                "Refund amount must be a positive integer in minor units."
             );
         }
 
@@ -438,7 +436,7 @@ export class Payment extends AggregateRoot {
             !this.canTransitionTo(nextStatus)
         ) {
             throw new UnprocessableEntityError(
-                `Cannot transition payment from '${this.status}' to '${nextStatus}'.`,
+                `Cannot transition payment from '${this.status}' to '${nextStatus}'.`
             );
         }
 
@@ -466,7 +464,7 @@ export class Payment extends AggregateRoot {
                 occurredAt,
                 correlationId,
                 causationId,
-            }),
+            })
         );
 
         return this;
