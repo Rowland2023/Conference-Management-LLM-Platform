@@ -18,12 +18,12 @@
 
 import express from "express";
 
-import { authGuard } from "../../../../shared/infrastructure/middleware/authGuard.js";
-import { validate } from "../../../../shared/infrastructure/middleware/validate.js";
-import { webhookRawBody } from "../../../../shared/infrastructure/middleware/webhookRawBody.js";
-import { rateLimit } from "../../../../shared/infrastructure/middleware/rateLimit.js";
-import { ipAllowlist } from "../../../../shared/infrastructure/middleware/ipAllowlist.js";
-import { idempotency } from "../../../../shared/infrastructure/middleware/idempotency.js";
+import { authGuard } from "../../../../Shared/Infrastructure/middleware/authGuard.js";
+import { validate } from "../../../../Shared/Infrastructure/middleware/validate.js";
+import { webhookRawBody } from "../../../../Shared/Infrastructure/middleware/webhookRawBody.js";
+import { rateLimit } from "../../../../Shared/Infrastructure/middleware/rateLimit.js";
+import { ipAllowlist } from "../../../../Shared/Infrastructure/middleware/ipAllowlist.js";
+import { idempotency } from "../../../../Shared/Infrastructure/middleware/idempotency.js";
 
 import {
     createPaymentSchema,
@@ -52,7 +52,11 @@ const PAYSTACK_IPS = [
 export default function createPaymentRouter({
     paymentController,
     paymentWebhookController,
+    authenticateMiddleware,
 }) {
+    if (typeof authenticateMiddleware !== "function") {
+        throw new Error("Payment router requires authenticateMiddleware.");
+    }
 
     const router = express.Router();
 
@@ -66,6 +70,7 @@ export default function createPaymentRouter({
     router.post(
         "/payments",
 
+        authenticateMiddleware,
         authGuard(),
 
         rateLimit({
@@ -92,6 +97,7 @@ export default function createPaymentRouter({
     router.get(
         "/payments/:id",
 
+        authenticateMiddleware,
         authGuard(),
 
         rateLimit({
@@ -116,6 +122,7 @@ export default function createPaymentRouter({
     router.get(
         "/payments",
 
+        authenticateMiddleware,
         authGuard("admin"),
 
         rateLimit({
@@ -136,6 +143,7 @@ export default function createPaymentRouter({
     router.post(
         "/payments/:id/refund",
 
+        authenticateMiddleware,
         authGuard("admin"),
 
         rateLimit({

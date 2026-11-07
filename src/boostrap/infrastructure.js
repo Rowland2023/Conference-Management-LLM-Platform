@@ -5,22 +5,22 @@ import Redis from "ioredis";
 import axios from "axios";
 
 import { KafkaConnection }
-    from "../shared/infrastructure/messaging/kafka/KafkaConnection.js";
+    from "../Shared/Infrastructure/messaging/kafka/KafkaConnection.js";
 
 import { KafkaEventBus }
-    from "../shared/infrastructure/messaging/kafka/KafkaEventBus.js";
+    from "../Shared/Infrastructure/messaging/kafka/KafkaEventBus.js";
 
 import { OutboxWorker }
-    from "../shared/infrastructure/messaging/outbox/OutboxWorker.js";
+    from "../Shared/Infrastructure/messaging/outbox/outboxworker.js";
 
 import { PostgresOutboxRepository }
-    from "../shared/infrastructure/messaging/outbox/PostgresOutboxRepository.js";
+    from "../Shared/Infrastructure/messaging/outbox/PostgresOutboxRepository.js";
 
 import KnexUnitOfWork
     from "../cross-cutting/database/KnexUnitOfWork.js";
 
 import { registerLockCommands }
-    from "../shared/infrastructure/redis/registerLockCommands.js";
+    from "../Shared/Infrastructure/redis/registerLockCommands.js";
 
 
 export function bootstrapInfrastructure({

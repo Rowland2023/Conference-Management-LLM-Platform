@@ -1,8 +1,8 @@
 
 import { createConferenceEventScheduleSubModule } from "../conference-management/event-schedule/index.js";
-import { createConferenceRegistrationSubModule } from "../conference-management/registration/index.js";
+import { createConferenceRegistrationSubModule } from "../conference-management/Registration/index.js";
 import { createAccountingServicesModule } from "../conference-management/accounting-services/index.js";
-import { createTicketModule } from "../conference-management/ticket/index.js";
+import { createTicketModule } from "../conference-management/Ticket/index.js";
 import { createAuthenticationModule } from "../conference-management/authentication/index.js";
 import { authenticate as createAuthenticateMiddleware } from "../conference-management/authentication/presentation/middleware/authenticate.js";
 import { JwtTokenIssuer } from "../conference-management/authentication/infrastructure/jwt/JwtIssuer.js";

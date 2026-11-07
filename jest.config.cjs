@@ -1,7 +1,7 @@
-
 module.exports = {
     testEnvironment: "node",
     transform: {},
+    setupFilesAfterEnv: ["<rootDir>/test/setup/jest.setup.js"],
 
     collectCoverageFrom: [
         "src/**/*.js",
@@ -20,6 +20,11 @@ module.exports = {
     testMatch: [
         "**/test/api/**/*.test.js",
         "**/test/integration/**/*.test.js",
+    ],
+
+    testPathIgnorePatterns: [
+        "<rootDir>/node_modules/",
+        "<rootDir>/Conference-Management-LLM-Platform/",
     ],
 
     verbose: false,

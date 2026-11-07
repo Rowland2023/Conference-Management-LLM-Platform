@@ -3,11 +3,16 @@ import { createApp } from "../../src/app.js";
 
 describe("Health Endpoint", () => {
 
+    let application;
     let app;
 
     beforeAll(async () => {
-        const application = await createApp();
+        application = await createApp();
         app = application.app;
+    });
+
+    afterAll(async () => {
+        await application?.stop?.();
     });
 
     test("GET /health returns 200", async () => {

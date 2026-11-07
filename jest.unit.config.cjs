@@ -41,5 +41,9 @@ module.exports = {
     global: { statements: 70, branches: 70, functions: 70, lines: 70 }
   },
   testMatch: ['**/test/unit/**/*.test.js'],
+  testPathIgnorePatterns: [
+    '<rootDir>/node_modules/',
+    '<rootDir>/Conference-Management-LLM-Platform/'
+  ],
   verbose: false
 };

@@ -33,3 +33,61 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+
+  api-tests:
+    name: API tests (PostgreSQL and Redis)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: conference_management
+          POSTGRES_USER: conference
+          POSTGRES_PASSWORD: conference_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U conference -d conference_management"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USER: conference
+      DB_PASSWORD: conference_password
+      DB_NAME: conference_management
+      DB_SSL: "false"
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      REDIS_URL: redis://127.0.0.1:6379
+      PAYSTACK_SECRET_KEY: sk_test_dummy_key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply database migrations
+        run: npx knex migrate:latest --env test
+
+      - name: Run API tests
+        run: npm run test:api
