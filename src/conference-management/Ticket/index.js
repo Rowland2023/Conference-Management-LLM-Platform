@@ -1,8 +1,8 @@
 
 // src/conference-management/ticket/index.js
 
-import { TicketMapper } from "./infrastructure/mappers/TicketMapper.js";
-import { PostgresTicketRepository } from "./infrastructure/repository/PostgresTicketRepository.js";
+import { TicketMapper } from "./Infrastructure/mappers/TicketMapper.js";
+import { PostgresTicketRepository } from "./Infrastructure/repository/PostgresTicketRepository.js";
 import { TicketCommandService } from "./application/commands/TicketCommandService.js";
 import { TicketQueryService } from "./application/queries/TicketQueryService.js";
 import { TicketController } from "./api/ticket.controller.js";
