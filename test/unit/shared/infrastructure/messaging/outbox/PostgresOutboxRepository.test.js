@@ -1,6 +1,6 @@
 
 import { PostgresOutboxRepository }
-    from "../../../../../../src/shared/Infrastructure/messaging/outbox/PostgresOutboxRepository.js";
+    from "../../../../../../src/Shared/Infrastructure/messaging/outbox/PostgresOutboxRepository.js";
 
 import { BaseDomainEvent }
     from "../../../../../../src/conference-management/accounting-services/ledger/domain/events/base-domain.event.js";

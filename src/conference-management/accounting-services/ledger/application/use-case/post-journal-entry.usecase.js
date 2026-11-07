@@ -2,7 +2,7 @@
 import {
   ValidationError,
   ConflictError,
-} from "../../../../../shared/application/errors/ApplicationErrors.js";
+} from "../../../../../Shared/application/errors/ApplicationErrors.js";
 
 import {
   UnbalancedEntryError,

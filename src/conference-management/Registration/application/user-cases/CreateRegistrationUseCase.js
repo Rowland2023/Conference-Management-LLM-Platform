@@ -2,7 +2,7 @@
 import {
   NotFoundError,
   BusinessRuleValidationError,
-} from "../../../../shared/domain/error/DomainErrors.js";
+} from "../../../../Shared/domain/error/DomainErrors.js";
 import { Registration } from "../../domain/entities/Registration.js";
 
 export class CreateRegistrationUseCase {
